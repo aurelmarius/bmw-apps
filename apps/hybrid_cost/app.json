@@ -1,0 +1,222 @@
+{
+  "id": "hybrid_cost",
+  "title": "Hybrid Cost",
+  "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive fuel/electricity price configurator",
+  "version": "1.0.0",
+  "vendor": "custom",
+  "loggingId": "OA9D",
+  "iconGlyph": "battery",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineSpeed2": "rs",
+      "statusEngineTemperature": "rs"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "statusActualValueTorque2": "rs"
+    },
+    "de.bmw.infotainment.vehicle.CDS2": {
+      "statusLongitudinalAccelerationMassCenter": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "Hybrid Cost",
+      "buttons": [
+        [
+          "BTN_PAGE",
+          "Switch Tab"
+        ],
+        [
+          "BTN_ADJ_FUEL",
+          "Petrol Price"
+        ],
+        [
+          "BTN_ADJ_ELEC",
+          "Elec Price"
+        ],
+        [
+          "BTN_RESET",
+          "Reset Trip"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "petrolPrice",
+      "label": "Petrol price per litre",
+      "type": "number",
+      "unit": "RON",
+      "default": 7.5,
+      "steps": [
+        6.0,
+        6.5,
+        7.0,
+        7.2,
+        7.4,
+        7.6,
+        7.8,
+        8.0,
+        8.5,
+        9.0,
+        9.5,
+        10.0,
+        10.5,
+        11.0,
+        11.5,
+        12.0,
+        12.5,
+        13.0
+      ]
+    },
+    {
+      "key": "elecPrice",
+      "label": "Electricity price per kWh",
+      "type": "number",
+      "unit": "RON",
+      "default": 0.8,
+      "steps": [
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.2,
+        1.5,
+        1.8,
+        2.0,
+        2.4,
+        2.8,
+        3.2,
+        3.6,
+        4.0
+      ]
+    },
+    {
+      "key": "currency",
+      "label": "Currency",
+      "type": "choice",
+      "default": "RON",
+      "options": [
+        [
+          "RON",
+          "RON (lei)"
+        ],
+        [
+          "EUR",
+          "EUR (€)"
+        ],
+        [
+          "USD",
+          "USD ($)"
+        ],
+        [
+          "GBP",
+          "GBP (£)"
+        ]
+      ]
+    },
+    {
+      "key": "purePetrolAvg",
+      "label": "Pure petrol baseline consumption",
+      "type": "number",
+      "unit": "L/100km",
+      "default": 8.5,
+      "steps": [
+        7.0,
+        7.5,
+        8.0,
+        8.5,
+        9.0,
+        9.5,
+        10.0,
+        11.0
+      ]
+    },
+    {
+      "key": "theme",
+      "label": "Colour theme",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    },
+    {
+      "key": "demo",
+      "label": "Demo data",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto"
+        ],
+        [
+          "on",
+          "Always"
+        ],
+        [
+          "off",
+          "Never"
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema": 2,
+  "name": "Aurel Marius BMW Apps",
+  "components": [
+    {
+      "id": "engine_care",
+      "kind": "app",
+      "version": "1.0.0",
+      "title": "Engine Care",
+      "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
+      "mguHmi": ["ID7"],
+      "artifact": {
+        "name": "engine_care@1.0.0.tgz",
+        "size": 393015,
+        "sha256": "01a3e73fb335299c1dead85fed71abd9f6ea3d4a019cc9d7c164d5c8de5aa6b5",
+        "url": "packages/engine_care@1.0.0.tgz"
+      },
+      "uninstallable": true
+    },
+    {
+      "id": "hybrid_cost",
+      "kind": "app",
+      "version": "1.0.0",
+      "title": "Hybrid Cost",
+      "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive price configurator",
+      "mguHmi": ["ID7"],
+      "artifact": {
+        "name": "hybrid_cost@1.0.0.tgz",
+        "size": 393818,
+        "sha256": "d1a10d6015d616addb0ab56cc9dea5754db64d4561be1f1e6fe615f62ab0a922",
+        "url": "packages/hybrid_cost@1.0.0.tgz"
+      },
+      "uninstallable": true
+    }
+  ]
+}
