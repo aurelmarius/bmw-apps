@@ -1,0 +1,70 @@
+name: Prepare Draft Release
+
+on:
+  push:
+    paths:
+      - 'packages/**'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release Tag (leave empty to autodetect e.g. v1.0.1)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prepare Release Metadata
+        id: prep
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          python3 tools/prepare_release.py
+
+      - name: Commit updated catalog.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add catalog.json
+          if ! git diff-index --quiet HEAD --; then
+            git commit -m "Auto-update catalog.json for release ${{ steps.prep.outputs.tag }}"
+            git push origin main
+          fi
+
+      - name: Create or Update Draft Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.prep.outputs.tag }}
+          TITLE: ${{ steps.prep.outputs.title }}
+        run: |
+          echo "Processing draft release for $TAG..."
+          
+          # Check if release already exists
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists. Uploading assets to existing release..."
+            gh release upload "$TAG" packages/*.tgz mgu-store.json --clobber
+          else
+            echo "Creating fresh Draft Release $TAG..."
+            gh release create "$TAG" packages/*.tgz mgu-store.json \
+              --draft \
+              --title "$TITLE" \
+              --notes-file release_notes.md
+          fi
+          
+          echo "Draft release successfully prepared! Go to GitHub Releases and click 'Publish release' when ready."

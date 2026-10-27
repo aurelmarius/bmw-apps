@@ -1,0 +1,14 @@
+{
+  "apps": {
+    "engine_care": {
+      "title": "Engine Care",
+      "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
+      "author": "custom"
+    },
+    "hybrid_cost": {
+      "title": "Hybrid Cost",
+      "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive fuel/electricity price configurator",
+      "author": "custom"
+    }
+  }
+}
