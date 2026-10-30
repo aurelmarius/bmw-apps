@@ -22,17 +22,17 @@
     {
       "id": "hybrid_cost",
       "kind": "app",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "title": "Hybrid Cost",
       "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive fuel/electricity price configurator",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "hybrid_cost@1.0.2.tgz",
-        "size": 556882,
-        "sha256": "393dc894698106e1796930ce33aa48b1132b14252e958fe43e6b92cb10b64e9f",
-        "url": "packages/hybrid_cost@1.0.2.tgz"
+        "name": "hybrid_cost@1.1.0.tgz",
+        "size": 565607,
+        "sha256": "49c09cb4ab99f5369a5684c1c4d9a144955e8d38666cf62bb7980ab68ad94ed2",
+        "url": "packages/hybrid_cost@1.1.0.tgz"
       },
       "uninstallable": true
     }
