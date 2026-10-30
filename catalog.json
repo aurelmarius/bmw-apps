@@ -12,11 +12,11 @@
         "ID7"
       ],
       "icon": "engine_care.png",
-      "iconSha256": "753856944087dd05431329073c81b533d635f5fbe1c5e5843e25ad746f58ba5e",
+      "iconSha256": "e00267cdc7e01dd2d0af2da474ecd811e8725708e96c933786f5023a4802d60b",
       "artifact": {
         "name": "engine_care@1.0.1.tgz",
-        "size": 529387,
-        "sha256": "ec8685a114bce8e05a41f18c19057e95919a9fb955772faea3222939ee6f676e",
+        "size": 529651,
+        "sha256": "d7fb7d54d330b36235708b3d7772e84d01424af5dce3f1b4c83b6f93122ee8a6",
         "url": "packages/engine_care@1.0.1.tgz"
       },
       "uninstallable": true

@@ -34,13 +34,14 @@ if (glyph === 'gauge') {
     for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) if ((i + j) % 2 === 0) c.fillRect(100 + i * 8, 22 + j * 8, 8, 8, W);
     c.line(100, 22, 100, 64, 4, W);
 } else if (glyph === 'engine') {
-    // engine block + check mark accent
+    // engine block + green health checkmark accent
     c.strokeRoundRect(22, 44, 84, 54, 6, 6, W);
     c.fillRect(40, 30, 40, 6, W); c.fillRect(56, 34, 8, 12, W);
     c.fillRect(8, 60, 16, 6, W); c.fillRect(8, 56, 6, 22, W);
     c.fillRect(104, 58, 14, 6, W); c.fillRect(114, 52, 6, 30, W);
-    c.circle(104, 102, 20, A);
-    c.text('!', 104, 112, 32, W, { font: 'bold', align: 'center' });
+    c.circle(104, 102, 18, '#2fd27a');
+    c.line(95, 102, 101, 109, 4, W);
+    c.line(101, 109, 114, 95, 4, W);
 } else if (glyph === 'rpm') {
     // tach with shift lights
     c.arc(70, 84, 44, 52, -110, 110, W, { round: true });
