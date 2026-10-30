@@ -30,8 +30,8 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 
 * **Live Cost per 100 km**: Real-time monetary cost (e.g. RON/100km, EUR/100km) based on instant fuel and electricity consumption.
 * **Dynamic Powertrain Torque Split**: Live visual split between ICE and Electric motor torque.
-* **Interactive Price Configurator**: Adjust fuel price per litre and electricity cost per kWh directly using the iDrive rotary controller or touchscreen.
-* **Multi-Currency Support**: RON, EUR, USD, GBP.
+* **Price Editor**: Tap a price (or press "Petrol Price" / "Elec Price") and set it with the iDrive controller (turn to change, press to save), +/- buttons or a numeric keypad. Without the GPU renderer, the buttons step through round prices for the chosen currency.
+* **Multi-Currency Support**: RON, EUR, USD, GBP, CHF, PLN, HUF, CZK, SEK, NOK, DKK - each with typical prices and its own decimals; prices are kept separately for every currency.
 * **Trip Cost Summary**: Financial tracking for current trip, last charge, and cumulative usage.
 
 ---

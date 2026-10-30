@@ -52,56 +52,6 @@
   ],
   "settings": [
     {
-      "key": "petrolPrice",
-      "label": "Petrol price per litre",
-      "type": "number",
-      "unit": "RON",
-      "default": 7.5,
-      "steps": [
-        6.0,
-        6.5,
-        7.0,
-        7.2,
-        7.4,
-        7.6,
-        7.8,
-        8.0,
-        8.5,
-        9.0,
-        9.5,
-        10.0,
-        10.5,
-        11.0,
-        11.5,
-        12.0,
-        12.5,
-        13.0
-      ]
-    },
-    {
-      "key": "elecPrice",
-      "label": "Electricity price per kWh",
-      "type": "number",
-      "unit": "RON",
-      "default": 0.8,
-      "steps": [
-        0.6,
-        0.7,
-        0.8,
-        0.9,
-        1.0,
-        1.2,
-        1.5,
-        1.8,
-        2.0,
-        2.4,
-        2.8,
-        3.2,
-        3.6,
-        4.0
-      ]
-    },
-    {
       "key": "currency",
       "label": "Currency",
       "type": "choice",
@@ -109,19 +59,47 @@
       "options": [
         [
           "RON",
-          "RON (lei)"
+          "RON - Romanian leu"
         ],
         [
           "EUR",
-          "EUR (€)"
+          "EUR - Euro"
         ],
         [
           "USD",
-          "USD ($)"
+          "USD - US dollar"
         ],
         [
           "GBP",
-          "GBP (£)"
+          "GBP - Pound sterling"
+        ],
+        [
+          "CHF",
+          "CHF - Swiss franc"
+        ],
+        [
+          "PLN",
+          "PLN - Polish zloty"
+        ],
+        [
+          "HUF",
+          "HUF - Hungarian forint"
+        ],
+        [
+          "CZK",
+          "CZK - Czech koruna"
+        ],
+        [
+          "SEK",
+          "SEK - Swedish krona"
+        ],
+        [
+          "NOK",
+          "NOK - Norwegian krone"
+        ],
+        [
+          "DKK",
+          "DKK - Danish krone"
         ]
       ]
     },

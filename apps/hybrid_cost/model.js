@@ -12,7 +12,15 @@
  *   tripCost(trip, c)                           money spent, petrol-car equivalent, saved, averages
  *   liveCost(speed, c)                          estimated cost / 100 km at this speed, electric vs petrol
  *
- * c = the settings: { petrolPrice, elecPrice, purePetrolAvg, monthlyKm }.
+ * Prices are kept per currency in the state (st.prices), so switching currency never mixes them:
+ *   price(st, cur, kind)                        kind 'petrol' (per litre) or 'elec' (per kWh); the currency's
+ *                                               typical price until one is set
+ *   setPrice(st, cur, kind, v)                  rounded to the currency's decimals, kept within its range
+ *   nextPrice(st, cur, kind)                    the next of a list around the typical price (button cycling)
+ *   seedPrices(st, cur, { petrol, elec })       prices set in the settings up to 1.1, taken over once if plausible
+ *   new PriceEdit(cur, kind, value)             the price editor's arithmetic: turn / step / type a number
+ *
+ * c = { petrolPrice, elecPrice, purePetrolAvg, monthlyKm } (prices of the current currency).
  */
 const fs = require('fs');
 const path = require('path');
@@ -41,7 +49,124 @@ const freshTrip = (now) => ({
     evSec: 0, iceSec: 0,
     kwhConsumed: 0, fuelLitersConsumed: 0, regenKwhHarvested: 0,
 });
-const freshState = (now) => ({ trip: freshTrip(now), lastLive: 0 });
+const freshState = (now) => ({ trip: freshTrip(now), lastLive: 0, prices: {} });
+
+/**
+ * Currencies: typical prices (petrol per litre, electricity per kWh; 2025/26 levels), decimals shown
+ * and typed. The highest price allowed is 5x the typical one.
+ */
+const CURRENCIES = {
+    RON: { name: 'Romanian leu', petrol: 7.5, elec: 0.8, dp: 2 },
+    EUR: { name: 'Euro', petrol: 1.75, elec: 0.3, dp: 2 },
+    USD: { name: 'US dollar', petrol: 1.0, elec: 0.17, dp: 2 },
+    GBP: { name: 'Pound sterling', petrol: 1.4, elec: 0.25, dp: 2 },
+    CHF: { name: 'Swiss franc', petrol: 1.85, elec: 0.3, dp: 2 },
+    PLN: { name: 'Polish zloty', petrol: 6.3, elec: 1.1, dp: 2 },
+    HUF: { name: 'Hungarian forint', petrol: 600, elec: 90, dp: 0 },
+    CZK: { name: 'Czech koruna', petrol: 38, elec: 7, dp: 2 },
+    SEK: { name: 'Swedish krona', petrol: 18.5, elec: 2.5, dp: 2 },
+    NOK: { name: 'Norwegian krone', petrol: 21, elec: 2, dp: 2 },
+    DKK: { name: 'Danish krone', petrol: 13.5, elec: 2.5, dp: 2 },
+};
+const KINDS = { petrol: 'L', elec: 'kWh' };
+const currency = (cur) => CURRENCIES[cur] || CURRENCIES.EUR;
+/** the smallest step of a price: one unit of its last decimal (0.01, or 1 for HUF) */
+const fineStep = (cur) => Math.pow(10, -currency(cur).dp);
+const maxPrice = (cur, kind) => currency(cur)[kind] * 5;
+const roundTo = (v, dp) => Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp);
+/** v rounded to the currency's decimals and kept within (0, 5x typical]; null for anything not a positive number */
+function cleanPrice(cur, kind, v) {
+    v = Number(v);
+    if (!isFinite(v) || v <= 0) return null;
+    return Math.min(maxPrice(cur, kind), Math.max(fineStep(cur), roundTo(v, currency(cur).dp)));
+}
+function price(st, cur, kind) {
+    const p = st.prices && st.prices[cur] && st.prices[cur][kind];
+    return isNum(p) && p > 0 ? p : currency(cur)[kind];
+}
+function setPrice(st, cur, kind, v) {
+    const p = cleanPrice(cur, kind, v);
+    if (p === null) return null;
+    st.prices = st.prices || {};
+    st.prices[cur] = Object.assign({}, st.prices[cur], { [kind]: p });
+    return p;
+}
+/** a round step near x: 1, 2, 2.5 or 5 times a power of ten, that the currency's decimals can show */
+function niceStep(x, dp) {
+    const p = Math.pow(10, Math.floor(Math.log10(x))), unit = Math.pow(10, dp);
+    return [1, 2, 2.5, 5, 10].map((m) => m * p).filter((v) => Math.abs(v * unit - Math.round(v * unit)) < 1e-6)
+        .reduce((best, v) => (Math.abs(v - x) < Math.abs(best - x) ? v : best), 10 * p);
+}
+/** prices from about 60 % to 140 % of the typical one, in round steps of about 4 % */
+function priceList(cur, kind) {
+    const base = currency(cur)[kind], dp = currency(cur).dp;
+    const step = Math.max(fineStep(cur), niceStep(base * 0.04, dp));
+    const first = Math.max(step, Math.round(base * 0.6 / step) * step);
+    const out = [];
+    for (let v = first; v <= base * 1.4 + 1e-9; v += step) {
+        const r = roundTo(v, dp);
+        if (out.indexOf(r) < 0) out.push(r);
+    }
+    return out;
+}
+/** the next price of priceList above the current one, wrapping round (bar buttons without the editor) */
+function nextPrice(st, cur, kind) {
+    const list = priceList(cur, kind), now = price(st, cur, kind);
+    const i = list.findIndex((v) => v > now + 1e-9);
+    return setPrice(st, cur, kind, i >= 0 ? list[i] : list[0]);
+}
+/** prices set in the settings up to 1.1 (one set, whatever the currency): kept where they fit the currency */
+function seedPrices(st, cur, legacy) {
+    let n = 0;
+    for (const kind of Object.keys(KINDS)) {
+        const v = legacy && Number(legacy[kind]);
+        if (st.prices && st.prices[cur] && isNum(st.prices[cur][kind])) continue;
+        const typ = currency(cur)[kind];
+        if (isNum(v) && v >= typ * 0.3 && v <= typ * 3 && setPrice(st, cur, kind, v) !== null) n++;
+    }
+    return n;
+}
+
+/**
+ * The price editor's arithmetic, apart from its drawing (price_sheet.js): the controller or the
+ * +/- buttons step the value, the keypad types one. value(): what Save would store (null: not a price).
+ */
+class PriceEdit {
+    constructor(cur, kind, value) {
+        this.cur = cur; this.kind = kind;
+        this.dp = currency(cur).dp;
+        this.v = cleanPrice(cur, kind, value) || currency(cur)[kind];
+        this.entry = null;          // typed text, while typing
+    }
+    /** steps of the +/- buttons: one, ten and a hundred units of the last decimal */
+    steps() { const f = fineStep(this.cur); return [f * 100, f * 10, f]; }
+    /** n steps of size (a fast controller turn: d clicks at once moves ten times as far) */
+    step(n, size) {
+        const base = this.entry !== null ? this.value() : this.v;
+        this.entry = null;
+        const raw = (base === null ? this.v : base) + n * size;
+        const next = cleanPrice(this.cur, this.kind, raw > 0 ? raw : fineStep(this.cur));   // below 0: the smallest price
+        if (next !== null) this.v = next;
+    }
+    turn(d) { this.step(d, fineStep(this.cur) * (Math.abs(d) >= 3 ? 10 : 1)); }
+    key(k) {
+        let e = this.entry === null ? '' : this.entry;
+        if (k === 'del') { e = (this.entry === null ? this.text() : e).slice(0, -1); this.entry = e; return; }
+        if (k === '.') {
+            if (this.dp === 0 || e.indexOf('.') >= 0) return;
+            this.entry = (e || '0') + '.';
+            return;
+        }
+        if (!/^\d$/.test(k)) return;
+        const dot = e.indexOf('.');
+        if (dot >= 0 && e.length - dot - 1 >= this.dp) return;       // no more decimals than the currency has
+        if (e.replace('.', '').length >= 7) return;
+        this.entry = (e === '0' ? '' : e) + k;
+    }
+    /** what the editor shows */
+    text() { return this.entry !== null ? this.entry : this.v.toFixed(this.dp); }
+    value() { return this.entry !== null ? cleanPrice(this.cur, this.kind, this.entry) : this.v; }
+}
 
 /** The saved state, else its backup (a write cut off by the unit shutting down), else a fresh one. */
 function loadState(file, log, now) {
@@ -54,6 +179,7 @@ function loadState(file, log, now) {
             const s = freshState(now);
             Object.assign(s.trip, loaded.trip);
             s.lastLive = loaded.lastLive || 0;
+            if (loaded.prices && typeof loaded.prices === 'object') s.prices = loaded.prices;
             if (f !== file && log) log.warn('hybrid_cost state restored from the backup');
             return s;
         } catch (e) {
@@ -191,5 +317,6 @@ function liveCost(speed, c) {
 
 module.exports = {
     Tracker, loadState, saveState, freshState, engineState, speedNow, tripCost, liveCost, isNum,
+    CURRENCIES, KINDS, currency, price, setPrice, nextPrice, priceList, seedPrices, PriceEdit,
     RPM_FRESH_MS, TRIP_GAP_MS, EV_MAX_KMH, ICE_L100, EV_KWH100,
 };

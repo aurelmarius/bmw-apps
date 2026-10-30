@@ -167,6 +167,76 @@ const tests = {
         fs.rmSync(dir, { recursive: true, force: true });
         assert.strictEqual(M.loadState(f).trip.distanceMeters, 0);  // nothing there: fresh
     },
+    'prices are kept per currency, typical ones until set'() {
+        const st = M.freshState(T0);
+        assert.strictEqual(M.price(st, 'EUR', 'petrol'), 1.75);
+        assert.strictEqual(M.price(st, 'RON', 'elec'), 0.8);
+        M.setPrice(st, 'RON', 'petrol', 7.4949);
+        M.setPrice(st, 'EUR', 'petrol', 1.689);
+        assert.strictEqual(M.price(st, 'RON', 'petrol'), 7.49);
+        assert.strictEqual(M.price(st, 'EUR', 'petrol'), 1.69);
+        assert.strictEqual(M.price(st, 'RON', 'elec'), 0.8, 'the other price untouched');
+        assert.strictEqual(M.setPrice(st, 'EUR', 'elec', 0), null, '0 is not a price');
+        assert.strictEqual(M.setPrice(st, 'EUR', 'elec', 'abc'), null);
+        assert.strictEqual(M.setPrice(st, 'EUR', 'elec', 99), 1.5, 'at most 5x typical');
+        assert.strictEqual(M.setPrice(st, 'HUF', 'petrol', 612.7), 613, 'no decimals in forint');
+        assert.strictEqual(M.price(st, 'XYZ', 'petrol'), 1.75, 'an unknown currency counts as EUR');
+    },
+    'prices survive a save and load'() {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hybrid-cost-'));
+        const f = path.join(dir, 'state.json');
+        const st = M.freshState(T0);
+        M.setPrice(st, 'EUR', 'elec', 0.27);
+        M.saveState(f, st);
+        assert.strictEqual(M.price(M.loadState(f), 'EUR', 'elec'), 0.27);
+        fs.rmSync(dir, { recursive: true, force: true });
+    },
+    'old settings prices are taken over once, only where they fit the currency'() {
+        const st = M.freshState(T0);
+        assert.strictEqual(M.seedPrices(st, 'RON', { petrol: 7.2, elec: 0.95 }), 2);
+        assert.strictEqual(M.price(st, 'RON', 'petrol'), 7.2);
+        assert.strictEqual(M.seedPrices(st, 'RON', { petrol: 9, elec: 1 }), 0, 'set prices are not overwritten');
+        const eu = M.freshState(T0);
+        assert.strictEqual(M.seedPrices(eu, 'EUR', { petrol: 7.5, elec: 0.8 }), 1, 'RON-sized petrol price not taken for EUR');
+        assert.strictEqual(M.price(eu, 'EUR', 'petrol'), 1.75);
+        assert.strictEqual(M.price(eu, 'EUR', 'elec'), 0.8);
+        assert.strictEqual(M.seedPrices(M.freshState(T0), 'EUR', {}), 0);
+    },
+    'button cycling: round prices around the typical one, wrapping'() {
+        for (const cur of Object.keys(M.CURRENCIES)) {
+            for (const kind of ['petrol', 'elec']) {
+                const list = M.priceList(cur, kind), typ = M.CURRENCIES[cur][kind];
+                assert(list.length >= 8, cur + ' ' + kind + ' list too short');
+                assert(list[0] <= typ * 0.7 && list[list.length - 1] >= typ * 1.3, cur + ' ' + kind + ' range');
+                assert(list.every((v, i) => i === 0 || v > list[i - 1]), cur + ' ' + kind + ' ascending');
+            }
+        }
+        const st = M.freshState(T0);
+        assert.strictEqual(M.nextPrice(st, 'RON', 'petrol'), 7.75);
+        M.setPrice(st, 'RON', 'petrol', 10.5);
+        assert.strictEqual(M.nextPrice(st, 'RON', 'petrol'), M.priceList('RON', 'petrol')[0], 'wraps round');
+    },
+    'price editor: controller, steps and keypad'() {
+        const e = new M.PriceEdit('RON', 'petrol', 7.5);
+        e.turn(1); assert.strictEqual(e.text(), '7.51');
+        e.turn(-2); assert.strictEqual(e.text(), '7.49');
+        e.turn(3); assert.strictEqual(e.text(), '7.79', 'a fast turn moves ten at a time');
+        e.step(-1, 1); assert.strictEqual(e.text(), '6.79');
+        assert.deepStrictEqual(e.steps(), [1, 0.1, 0.01]);
+        for (const k of ['8', '.', '1', '9', '9']) e.key(k);          // a third decimal is refused
+        assert.strictEqual(e.text(), '8.19'); assert.strictEqual(e.value(), 8.19);
+        e.key('del'); assert.strictEqual(e.text(), '8.1');
+        e.turn(1); assert.strictEqual(e.text(), '8.11', 'turning goes on from the typed value');
+        e.key('del'); e.key('del'); e.key('del'); e.key('del');
+        assert.strictEqual(e.value(), null, 'nothing typed: not a price');
+        const z = new M.PriceEdit('EUR', 'elec', 0.3);
+        z.key('0'); z.key('0'); assert.strictEqual(z.text(), '0', 'no leading zeros');
+        z.key('.'); z.key('2'); z.key('5'); assert.strictEqual(z.value(), 0.25);
+        z.step(-100, 0.01); assert.strictEqual(z.value(), 0.01, 'never below the smallest price');
+        const h = new M.PriceEdit('HUF', 'petrol', 600);
+        assert.deepStrictEqual(h.steps(), [100, 10, 1]);
+        h.key('.'); h.key('6'); h.key('2'); h.key('5'); assert.strictEqual(h.value(), 625, 'no decimal point in forint');
+    },
 };
 
 let failed = 0;

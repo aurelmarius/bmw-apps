@@ -6,7 +6,8 @@
  *   - Real-time ICE vs e-Motor torque/power split (Nm & kW)
  *   - Trip financial tracker: money spent vs money saved compared to pure petrol car
  *   - Regenerative braking energy harvest tracker (kWh & money recovered)
- *   - On-screen interactive price adjuster for fuel (per L) and electricity (per kWh)
+ *   - Prices per currency (fuel per L, electricity per kWh), set in a price editor: the iDrive controller,
+ *     +/- buttons or a keypad (price_sheet.js); without the GPU renderer the bar buttons step through them
  *
  * The bookkeeping is in model.js (tested in tests/hybrid_cost.test.js); this file reads the car and draws.
  * Time, energy and cost are added up on a 1 s clock from the last values the car sent (the signals
@@ -20,6 +21,7 @@ const G = require('./kit/gauges');
 const Car = require('./kit/car');
 const { fitText } = require('./kit/text-layout');
 const M = require('./model');
+const { priceSheet } = require('./price_sheet');
 
 const W = 1600, H = 520;
 const GREEN = '#2fd27a';
@@ -42,11 +44,12 @@ mgu.run({
         /** a number setting; 0 is a value (only a missing one takes the default from app.json) */
         const specOf = (k) => ((ctx.spec && ctx.spec.settings) || []).find((x) => x.key === k) || {};
         const num = (k, d) => { const v = settings.get(k); const def = specOf(k).default !== undefined ? specOf(k).default : d; return v === undefined || v === null || v === '' || isNaN(Number(v)) ? def : Number(v); };
+        const cur = () => String(settings.get('currency') || specOf('currency').default || 'RON');
+        // prices live in the saved state, one pair per currency (the tracker's, also while demo data shows)
         const cfg = () => ({
-            petrolPrice: num('petrolPrice', 7.5), elecPrice: num('elecPrice', 0.8),
+            petrolPrice: M.price(tracker.state, cur(), 'petrol'), elecPrice: M.price(tracker.state, cur(), 'elec'),
             purePetrolAvg: num('purePetrolAvg', 8.5), monthlyKm: num('monthlyKm', 1200),
         });
-        const cur = () => String(settings.get('currency') || specOf('currency').default || 'RON');
 
         let toastMessage = null, toastUntil = 0;
         function showToast(msg, ms) {
@@ -70,6 +73,11 @@ mgu.run({
             }
         }
         process.on('exit', () => { if (tracker.dirty) save(); });
+        // up to 1.1 the prices were settings (one pair, whatever the currency): kept where they fit it
+        if (M.seedPrices(tracker.state, cur(), { petrol: settings.get('petrolPrice'), elec: settings.get('elecPrice') })) {
+            log.info('prices taken over from the settings for ' + cur());
+            save();
+        }
 
         /* ---------- The clock: one tick a second ---------- */
         function tick() {
@@ -106,25 +114,37 @@ mgu.run({
         });
         if (ctx.onTab) ctx.onTab((i) => { activeTab = i; resetArmed = 0; render(); });
 
-        /** the next of the setting's steps (app.json) above the current value, wrapping round */
-        function cycle(key, fallback) {
-            const steps = specOf(key).steps || fallback;
-            const current = num(key, steps[0]);
-            const idx = steps.findIndex((s) => s > current + 1e-6);
-            const next = idx >= 0 ? steps[idx] : steps[0];
-            settings.set(key, next);
-            return next;
+        const KIND = {
+            petrol: { title: 'Petrol price', per: 'litre', short: 'L', color: () => ctx.theme().accent },
+            elec: { title: 'Electricity price', per: 'kWh', short: 'kWh', color: () => BLUE },
+        };
+        const fmtPrice = (v) => v.toFixed(M.currency(cur()).dp);
+        function setPrice(kind, v) {
+            const p = M.setPrice(tracker.state, cur(), kind, v);
+            if (p === null) return;
+            save();
+            showToast(`${KIND[kind].title} set to ${fmtPrice(p)} ${cur()}/${KIND[kind].short}`);
+            render();
         }
-        ui.onClick('BTN_ADJ_FUEL', () => {
-            const next = cycle('petrolPrice', [6.5, 7.0, 7.5, 8.0, 8.5, 9.0]);
-            showToast(`Petrol set to ${next.toFixed(2)} ${cur()}/L`);
+        /**
+         * The price editor over the page (GPU renderer, full-screen layout); elsewhere the bar button
+         * steps through round prices around the currency's typical one.
+         */
+        function editPrice(kind) {
+            const c = cur(), k = KIND[kind];
+            const sheet = priceSheet({
+                edit: new M.PriceEdit(c, kind, M.price(tracker.state, c, kind)),
+                title: k.title, unit: `${c} per ${k.per}  ·  ${M.currency(c).name}`, color: k.color(),
+                onSave: (v) => setPrice(kind, v),
+            });
+            if (ctx.sheet && ctx.sheet(sheet)) return;
+            const p = M.nextPrice(tracker.state, c, kind);
+            save();
+            showToast(`${k.title} set to ${fmtPrice(p)} ${c}/${k.short}`);
             render();
-        });
-        ui.onClick('BTN_ADJ_ELEC', () => {
-            const next = cycle('elecPrice', [0.6, 0.8, 1.0, 1.2, 1.5, 2.0]);
-            showToast(`Electricity set to ${next.toFixed(2)} ${cur()}/kWh`);
-            render();
-        });
+        }
+        ui.onClick('BTN_ADJ_FUEL', () => editPrice('petrol'));
+        ui.onClick('BTN_ADJ_ELEC', () => editPrice('elec'));
 
         // first press arms the reset, a second one within 5 s does it
         ui.onClick('BTN_RESET', () => {
@@ -144,6 +164,8 @@ mgu.run({
 
         /* ---------- Rendering ---------- */
         const fm = (v, dp) => (M.isNum(v) ? v.toFixed(dp) : '--');
+        /** an amount in the current currency, with its decimals (none for HUF) */
+        const money = (v) => v.toFixed(M.currency(cur()).dp);
 
         function render() {
             const t = ctx.theme();
@@ -190,13 +212,13 @@ mgu.run({
             cv.text('ELECTRIC', 48, 145, 20, BLUE, { font: 'bold' });
             cv.text(e100, 48, 195, 54, BLUE, { font: 'num' });
             cv.text(`${cu} / 100 km`, 52 + cv.textWidth(e100, 54, { font: 'num' }), 195, 24, t.dim);
-            cv.text(fitText(cv, `est. ${lc.kwh100.toFixed(1)} kWh/100km @ ${c.elecPrice.toFixed(2)} ${cu}/kWh`, 19, 442), 48, 225, 19, t.dim);
+            cv.text(fitText(cv, `est. ${lc.kwh100.toFixed(1)} kWh/100km @ ${c.elecPrice.toFixed(M.currency(cu).dp)} ${cu}/kWh`, 19, 442), 48, 225, 19, t.dim);
 
             // Petrol Cost per 100km
             cv.text('PETROL (B48)', 48, 268, 20, t.accent, { font: 'bold' });
             cv.text(p100, 48, 318, 54, t.text, { font: 'num' });
             cv.text(`${cu} / 100 km`, 52 + cv.textWidth(p100, 54, { font: 'num' }), 318, 24, t.dim);
-            cv.text(fitText(cv, `est. ${lc.fuel100.toFixed(1)} L/100km @ ${c.petrolPrice.toFixed(2)} ${cu}/L`, 19, 442), 48, 348, 19, t.dim);
+            cv.text(fitText(cv, `est. ${lc.fuel100.toFixed(1)} L/100km @ ${c.petrolPrice.toFixed(M.currency(cu).dp)} ${cu}/L`, 19, 442), 48, 348, 19, t.dim);
 
             cv.fillRect(48, 375, 442, 1.5, withAlpha('#ffffff', 0.15));
 
@@ -219,7 +241,7 @@ mgu.run({
                 cv.text(`Speed > ${M.EV_MAX_KMH} km/h: Save battery for city traffic`, 64, 445, 18, t.dim);
             }
 
-            cv.text(fitText(cv, `Rates: ${c.petrolPrice.toFixed(2)} ${cu}/L (Petrol)  ·  ${c.elecPrice.toFixed(2)} ${cu}/kWh (Elec)`, 18, 442), 48, 485, 18, t.dim);
+            cv.text(fitText(cv, `Rates: ${c.petrolPrice.toFixed(M.currency(cu).dp)} ${cu}/L (Petrol)  ·  ${c.elecPrice.toFixed(M.currency(cu).dp)} ${cu}/kWh (Elec)`, 18, 442), 48, 485, 18, t.dim);
 
             // ===== PANEL 2 (Center): Dynamic Power / Torque Split =====
             G.panel(cv, t, 538, 44, 524, 468, 'Dynamic Torque & Power');
@@ -279,12 +301,12 @@ mgu.run({
             G.panel(cv, t, 1086, 44, 490, 468, 'Trip Cost & Savings');
 
             cv.text('TRIP TOTAL COST', 1110, 110, 20, t.dim, { font: 'bold', spacing: 1 });
-            cv.text(`${tc.total.toFixed(2)}`, 1110, 160, 52, t.text, { font: 'num' });
-            cv.text(cu, 1118 + cv.textWidth(tc.total.toFixed(2), 52, { font: 'num' }), 160, 26, t.dim);
+            cv.text(`${money(tc.total)}`, 1110, 160, 52, t.text, { font: 'num' });
+            cv.text(cu, 1118 + cv.textWidth(money(tc.total), 52, { font: 'num' }), 160, 26, t.dim);
 
             // Sub-breakdown
-            cv.text(fitText(cv, `Fuel: ${tc.fuel.toFixed(2)} ${cu} (${trip.fuelLitersConsumed.toFixed(2)} L)`, 21, 442), 1110, 200, 21, t.accent);
-            cv.text(fitText(cv, `Elec: ${tc.elec.toFixed(2)} ${cu} (${trip.kwhConsumed.toFixed(1)} kWh)`, 21, 442), 1110, 230, 21, BLUE);
+            cv.text(fitText(cv, `Fuel: ${money(tc.fuel)} ${cu} (${trip.fuelLitersConsumed.toFixed(2)} L)`, 21, 442), 1110, 200, 21, t.accent);
+            cv.text(fitText(cv, `Elec: ${money(tc.elec)} ${cu} (${trip.kwhConsumed.toFixed(1)} kWh)`, 21, 442), 1110, 230, 21, BLUE);
 
             cv.fillRect(1110, 255, 442, 1.5, withAlpha('#ffffff', 0.15));
 
@@ -292,7 +314,7 @@ mgu.run({
             cv.fillRect(1110, 280, 442, 85, withAlpha(GREEN, 0.16));
             cv.strokeRoundRect(1110, 280, 442, 85, 6, 1.5, withAlpha(GREEN, 0.6));
             cv.text('TOTAL SAVINGS THIS TRIP', 1130, 310, 20, GREEN, { font: 'bold' });
-            const savedStr = `+${tc.saved.toFixed(2)} ${cu}`;
+            const savedStr = `+${money(tc.saved)} ${cu}`;
             cv.text(savedStr, 1130, 348, 38, GREEN, { font: 'bold' });
             const savedX = 1142 + cv.textWidth(savedStr, 38, { font: 'bold' });
             cv.text(fitText(cv, `vs petrol car @ ${c.purePetrolAvg} L/100km`, 19, 1540 - savedX), savedX, 348, 19, t.dim);
@@ -302,7 +324,7 @@ mgu.run({
             const regenStr = `${trip.regenKwhHarvested.toFixed(2)} kWh`;
             cv.text(regenStr, 1110, 435, 26, GREEN, { font: 'bold' });
             const regenX = 1122 + cv.textWidth(regenStr, 26, { font: 'bold' });
-            cv.text(fitText(cv, `(+${tc.regen.toFixed(2)} ${cu} free energy)`, 22, 1552 - regenX), regenX, 435, 22, t.dim);
+            cv.text(fitText(cv, `(+${money(tc.regen)} ${cu} free energy)`, 22, 1552 - regenX), regenX, 435, 22, t.dim);
 
             cv.text(fitText(cv, `Trip Distance: ${tc.km.toFixed(1)} km  ·  Press "Reset Trip" twice to clear`, 18, 442), 1110, 485, 18, t.dim);
         }
@@ -352,29 +374,33 @@ mgu.run({
             // ===== PANEL 2 (Right): Interactive Price Adjuster =====
             G.panel(cv, t, 816, 44, 760, 468, 'Interactive Price Settings');
 
-            cv.text('QUICK PRICE ADJUSTER', 848, 110, 20, t.dim, { font: 'bold', spacing: 1.5 });
-            cv.text('Adjust energy prices on the fly using on-screen buttons:', 848, 140, 20, t.dim);
+            const touch = !!(cv.own && cv.target);
+            const dp = M.currency(cu).dp;
+            cv.text('PRICES IN ' + cu, 848, 110, 20, t.dim, { font: 'bold', spacing: 1.5 });
+            cv.text(fitText(cv, touch ? 'Tap a price to change it - controller, +/- buttons or keypad' : 'Use the "Petrol Price" and "Elec Price" buttons to change them', 20, 692), 848, 140, 20, t.dim);
 
             // Petrol Price Card
             cv.fillRect(848, 170, 330, 150, withAlpha(t.accent, 0.12));
             cv.strokeRoundRect(848, 170, 330, 150, 8, 1.5, withAlpha(t.accent, 0.4));
             cv.text('PETROL PRICE', 872, 205, 20, t.accent, { font: 'bold' });
-            cv.text(`${c.petrolPrice.toFixed(2)}`, 872, 258, 48, t.text, { font: 'num' });
-            cv.text(`${cu} / Litre`, 872 + cv.textWidth(c.petrolPrice.toFixed(2), 48, { font: 'num' }) + 10, 258, 22, t.dim);
-            cv.text('Tap "Petrol Price" button to cycle', 872, 298, 18, t.dim);
+            cv.text(c.petrolPrice.toFixed(dp), 872, 258, 48, t.text, { font: 'num' });
+            cv.text(`${cu} / Litre`, 872 + cv.textWidth(c.petrolPrice.toFixed(dp), 48, { font: 'num' }) + 10, 258, 22, t.dim);
+            cv.text(touch ? 'Tap to change' : 'Button "Petrol Price"', 872, 298, 18, t.dim);
+            if (touch) cv.target(848, 170, 330, 150, () => editPrice('petrol'), 'price-petrol', 8);
 
             // Electricity Price Card
             cv.fillRect(1210, 170, 330, 150, withAlpha(BLUE, 0.12));
             cv.strokeRoundRect(1210, 170, 330, 150, 8, 1.5, withAlpha(BLUE, 0.4));
             cv.text('ELECTRICITY PRICE', 1234, 205, 20, BLUE, { font: 'bold' });
-            cv.text(`${c.elecPrice.toFixed(2)}`, 1234, 258, 48, BLUE, { font: 'num' });
-            cv.text(`${cu} / kWh`, 1234 + cv.textWidth(c.elecPrice.toFixed(2), 48, { font: 'num' }) + 10, 258, 22, t.dim);
-            cv.text('Tap "Elec Price" button to cycle', 1234, 298, 18, t.dim);
+            cv.text(c.elecPrice.toFixed(dp), 1234, 258, 48, BLUE, { font: 'num' });
+            cv.text(`${cu} / kWh`, 1234 + cv.textWidth(c.elecPrice.toFixed(dp), 48, { font: 'num' }) + 10, 258, 22, t.dim);
+            cv.text(touch ? 'Tap to change' : 'Button "Elec Price"', 1234, 298, 18, t.dim);
+            if (touch) cv.target(1210, 170, 330, 150, () => editPrice('elec'), 'price-elec', 8);
 
             // Settings description
             cv.fillRect(848, 345, 692, 1.5, withAlpha('#ffffff', 0.15));
             cv.text('Settings & Persistence:', 848, 385, 22, t.text, { font: 'bold' });
-            cv.text('- Prices are saved in the app settings and persist across reboots.', 848, 415, 20, t.dim);
+            cv.text(fitText(cv, '- Prices are kept for each currency: switching currency keeps both sets.', 20, 692), 848, 415, 20, t.dim);
             cv.text(fitText(cv, `- Currency (${cu}), petrol car baseline and km per month: Settings screen.`, 20, 692), 848, 445, 20, t.dim);
             cv.text(fitText(cv, '- Trip totals are saved; demo data is never counted or saved.', 20, 692), 848, 475, 20, t.dim);
         }
