@@ -11,6 +11,8 @@
       "mguHmi": [
         "ID7"
       ],
+      "icon": "engine_care.png",
+      "iconSha256": "753856944087dd05431329073c81b533d635f5fbe1c5e5843e25ad746f58ba5e",
       "artifact": {
         "name": "engine_care@1.0.1.tgz",
         "size": 529387,
@@ -28,6 +30,8 @@
       "mguHmi": [
         "ID7"
       ],
+      "icon": "hybrid_cost.png",
+      "iconSha256": "37cc0d55a3ba679809bee3ad470d0d8a5693033f795736bb8c413105d0d8d290",
       "artifact": {
         "name": "hybrid_cost@1.0.1.tgz",
         "size": 530400,

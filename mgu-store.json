@@ -3,12 +3,16 @@
     "engine_care": {
       "title": "Engine Care",
       "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
-      "author": "custom"
+      "author": "custom",
+      "icon": "engine_care.png",
+      "iconSha256": "753856944087dd05431329073c81b533d635f5fbe1c5e5843e25ad746f58ba5e"
     },
     "hybrid_cost": {
       "title": "Hybrid Cost",
       "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive fuel/electricity price configurator",
-      "author": "custom"
+      "author": "custom",
+      "icon": "hybrid_cost.png",
+      "iconSha256": "37cc0d55a3ba679809bee3ad470d0d8a5693033f795736bb8c413105d0d8d290"
     }
   }
 }
