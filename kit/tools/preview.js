@@ -16,7 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const Module = require('module');
+const { headUnit } = require('./hu-stub');
 
 const stage = path.resolve(process.argv[2] || 'dist/car_vitals');
 const args = process.argv.slice(3);
@@ -30,73 +30,30 @@ for (let i = 0; i < args.length; i++) {
 }
 fs.mkdirSync(out, { recursive: true });
 
-const kitDir = path.join(stage, 'source', 'javascript', 'kit');
-const spec = JSON.parse(fs.readFileSync(path.join(kitDir, 'app-spec.json'), 'utf8'));
-const { Settings } = (() => {
-    // reuse the real Settings class without loading the SDK
-    const src = fs.readFileSync(path.join(kitDir, 'mgu.js'), 'utf8');
-    const m = src.match(/class Settings[\s\S]*?\n}\n/);
-    const fn = new Function('fs', 'path', 'DATA_DIR', 'log', m[0] + '\nreturn { Settings };');
-    return fn(fs, path, out, console);
-})();
-
-const handlers = {};
-const loops = {};
-let shown = (spec.screens && spec.screens[0] && spec.screens[0].name) || 'MAIN';
-const loopFn = () => loops[shown] && loops[shown]();
 let frame = 0;
-const settings = new Settings(spec.settings);
-try { fs.unlinkSync(settings.file); } catch (e) {}
-settings.values = {};
-for (const s of spec.settings || []) settings.values[s.key] = s.default;
-Object.assign(settings.values, { demo: 'on' }, sets);
-
-const ui = {
-    image: (name, cv) => display.present(name, cv, softImage),
-    _image: async (name, cv) => {
+const hu = headUnit(stage, {
+    dataDir: out, fresh: true, sets,
+    image: async (name, cv) => {
         const f = path.join(out, `${name.toLowerCase()}-${frame++}.png`);
         fs.writeFileSync(f, Buffer.isBuffer(cv) ? cv : cv.png());
         console.log('frame', f);
     },
-    text: async (n, t) => console.log('text', n, JSON.stringify(t)),
-    cells: async (n, r, o) => console.log('cells', n, r, JSON.stringify(o)),
-    rows: async (n, c) => console.log('rows', n, c),
-    visible: async () => {}, enabled: async () => {}, checked: async () => {},
-    onClick: (n, fn) => { handlers[n] = fn; },
-    open: async (n) => { console.log('open', n); if (loops[n]) shown = n; }, close: async () => {},
-    isVisible: () => !!process.env.MGU_RENDERD_FILE, onVisible: () => {}, comp: () => ({}),
-};
-const softImage = (n, cv) => ui._image(n, cv);
-const log = { info: console.log, warn: console.warn, error: console.error, debug: () => {} };
-const themeFn = () => require(path.join(kitDir, 'themes')).theme(settings.get('theme'));
-const { Display } = require(path.join(kitDir, 'display'));
-settings.onChange = settings.onChange || (() => {});
-const display = new Display(ui, log, spec, settings, themeFn);
-// every frame goes to the stream, also unchanged ones (frames=<n> must stay in step with time)
-const send = display._send.bind(display);
-display._send = (n, o, s) => send(n, o, s, true);
-const ctx = {
-    ui, settings, spec, dataDir: out, log, display,
-    canvas: (w, h) => display.canvas(w, h),
-    signals: { watch: async (iface) => ({ iface, error: 'preview' }), proxy: async () => { throw new Error('preview'); } },
-    theme: themeFn,
-    loop: (n, fps, fn) => { loops[n] = fn; return { stop() {}, kick() {} }; },
-};
-
-const realLoad = Module._load;
-Module._load = function (req, parent) {
-    if (/kit[\\/]mgu$/.test(req) || req === './kit/mgu') {
-        return { run: async (impl) => impl.start(ctx), log: ctx.log, SPEC: spec };
+});
+const { handlers, loopFn, WIDGETS } = hu;
+const renderWidgets = async () => {
+    if (!hu.widgetFn) return;
+    for (const i of WIDGETS) {
+        const cv = await hu.widgetFn(i);
+        if (cv) { const f = path.join(out, `widget_${i.big ? 'big' : 'small'}-${frame++}.png`); fs.writeFileSync(f, cv.png()); console.log('frame', f); }
     }
-    return realLoad.apply(this, arguments);
 };
-require(path.join(stage, 'source', 'javascript', 'app.js'));
+hu.start();
 
 setTimeout(async () => {
     for (const c of clicks) {
         // wait=<seconds> pauses (demo data keeps running); render forces a frame
         if (/^wait=/.test(c)) { await new Promise((r) => setTimeout(r, Number(c.slice(5)) * 1000)); continue; }
-        if (c === 'render') { await loopFn(); continue; }
+        if (c === 'render') { await loopFn(); await renderWidgets(); continue; }
         if (/^frames=/.test(c)) {
             const n = Number(c.slice(7)), t0 = Date.now();
             for (let i = 0; i < n; i++) {

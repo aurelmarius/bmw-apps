@@ -9,6 +9,7 @@
  */
 const zlib = require('zlib');
 const fonts = require('./fonts');
+const { t } = require('./i18n');
 
 /* ---------- colours ---------- */
 const cache = Object.create(null);
@@ -61,7 +62,7 @@ class Canvas {
         return this;
     }
 
-    /** Draw an RGBA image (sw x sh bytes) scaled into x, y, w, h, nearest pixel, alpha-blended. */
+    /** Draw an opaque RGBA image (sw x sh bytes) scaled into x, y, w, h, nearest pixel. */
     drawImage(src, sw, sh, x, y, w, h) {
         const x0 = Math.max(0, Math.round(x)), y0 = Math.max(0, Math.round(y));
         const x1 = Math.min(this.w, Math.round(x + w)), y1 = Math.min(this.h, Math.round(y + h));
@@ -72,20 +73,7 @@ class Canvas {
             let di = (py * this.w + x0) * 4;
             for (let px = x0; px < x1; px++, di += 4) {
                 const si = (sy + Math.min(sw - 1, ((px - x + 0.5) * fx) | 0)) * 4;
-                const a = src[si + 3];
-                if (a === 0) continue;
-                if (a === 255) {
-                    d[di] = src[si]; d[di + 1] = src[si + 1]; d[di + 2] = src[si + 2]; d[di + 3] = 255;
-                    continue;
-                }
-                if (d[di + 3] === 255) {
-                    const sa = a / 255, k = 1 - sa;
-                    d[di] = src[si] * sa + d[di] * k;
-                    d[di + 1] = src[si + 1] * sa + d[di + 1] * k;
-                    d[di + 2] = src[si + 2] * sa + d[di + 2] * k;
-                    continue;
-                }
-                d[di] = src[si]; d[di + 1] = src[si + 1]; d[di + 2] = src[si + 2]; d[di + 3] = a;
+                d[di] = src[si]; d[di + 1] = src[si + 1]; d[di + 2] = src[si + 2]; d[di + 3] = 255;
             }
         }
         return this;
@@ -431,11 +419,11 @@ class Canvas {
      */
     text(str, x, y, size, c, opts) {
         opts = opts || {};
-        const f = fonts.get(opts.font || 'label', size);
+        const s = opts.literal ? String(str) : t(str);
+        const f = fonts.get(opts.font || 'label', size, s);
         if (!f) return 0;
         c = rgba(c);
         const scale = size / f.size;
-        const s = String(str);
         const w = fonts.measure(f, s) * scale + (opts.spacing || 0) * Math.max(0, s.length - 1);
         let pen = opts.align === 'center' ? x - w / 2 : opts.align === 'right' ? x - w : x;
         for (const ch of s) {
@@ -449,8 +437,8 @@ class Canvas {
     }
 
     textWidth(str, size, opts) {
-        const f = fonts.get((opts && opts.font) || 'label', size);
-        return f ? fonts.measure(f, String(str)) * (size / f.size) + ((opts && opts.spacing) || 0) * Math.max(0, String(str).length - 1) : 0;
+        const s = opts && opts.literal ? String(str) : t(str), f = fonts.get((opts && opts.font) || 'label', size, s);
+        return f ? fonts.measure(f, s) * (size / f.size) + ((opts && opts.spacing) || 0) * Math.max(0, s.length - 1) : 0;
     }
 
     /** Blit an alpha glyph from the atlas, scaled (bilinear) and tinted. */

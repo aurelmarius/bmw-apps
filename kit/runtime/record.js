@@ -13,6 +13,7 @@
  */
 const { Canvas, rgba } = require('./canvas');
 const fonts = require('./fonts');
+const { t } = require('./i18n');
 
 const OP = {
     CLEAR: 1, RECT: 2, GRAD: 3, RRECT: 4, RSTROKE: 5, CARD: 6, RAMPRECT: 7, ARC: 8, LINE: 9,
@@ -49,7 +50,7 @@ function atlasId(f, family) {
     if (id === undefined) {
         // stable across runs and apps (the daemon shares atlases by id): family + size
         id = 0;
-        const k = family + '@' + f.size;
+        const k = family + '@' + f.size + (f.cacheKey ? '#' + f.cacheKey : '');
         for (let i = 0; i < k.length; i++) id = (Math.imul(id, 31) + k.charCodeAt(i)) >>> 0;
         id = (id | 1) >>> 0;
         atlasIds.set(f, id); atlasList.push({ id, f });
@@ -88,9 +89,15 @@ class Recorder {
         this.atlases = new Set();    // glyph atlases and colour ramps it uses (uploaded once by the transport)
         this.ramps = new Set();
         this.images = new Set();     // pixel images it draws (setImage)
+        this.targets = [];           // what a tap or the controller can press on the page: { x, y, w, h, run, key } (target)
+        this._extra = 0;
+        this.extraUsed = false;      // the drawing read extra (it reaches below the page: display.js places it so)
         this.recording = true;
     }
-    reset() { this.n = 0; if (this.layersUsed) this.layersUsed.clear(); this.atlases.clear(); this.ramps.clear(); this.images.clear(); return this; }
+    /** logical px the screen has below the app's page (display.js), 0 if none */
+    get extra() { if (this._extra) this.extraUsed = true; return this._extra; }
+    set extra(v) { this._extra = v || 0; }
+    reset() { this.n = 0; this._cnStamped = false; this.targets = []; this.scroll = false; this.extraUsed = false; if (this.layersUsed) this.layersUsed.clear(); this.atlases.clear(); this.ramps.clear(); this.images.clear(); return this; }
     _grow(k) {
         if (this.n + k <= this.u.length) return;
         let len = this.u.length * 2;
@@ -101,6 +108,12 @@ class Recorder {
     }
     /** the recorded words (a view, valid until the next draw call) */
     words() { return this.u.subarray(0, this.n); }
+    /**
+     * Something on the page a tap (or the iDrive controller, turned onto it and pressed) runs: run().
+     * key names it from frame to frame (the controller stays on it). Drawn by the caller; where the kit
+     * runs the screen (display.js) it rings the one the controller is on.
+     */
+    target(x, y, w, h, run, key, r) { this.targets.push({ x, y, w, h, run, key: String(key), r }); return this; }
 
     /* ---------- canvas.js API ---------- */
     /** Draw pixel image `id` (see setImage) scaled into x, y, w, h (nearest pixel). */
@@ -182,10 +195,6 @@ class Recorder {
         this.u[i++] = pack(c);
         this.n = i; return this;
     }
-    /** Filled triangle: [[x,y] x3] */
-    triangle(pts, c) {
-        return this.quad([pts[0], pts[1], pts[2], pts[2]], c);
-    }
     /** Area under a trace down to baseY (two triangles per segment). */
     fillUnder(pts, baseY, c) {
         if (pts.length < 2) return this;
@@ -221,10 +230,10 @@ class Recorder {
     /** Text; y is the baseline. Returns the width in logical px (as canvas.js). */
     text(str, x, y, size, c, opts) {
         opts = opts || {};
-        const family = opts.font || 'label';
-        const f = fonts.get(family, size * this.textScale);
+        const s = opts.literal ? String(str) : t(str), family = opts.font || 'label';
+        const f = fonts.get(family, size * this.textScale, s);
         if (!f) return 0;
-        const s = String(str), sc = size / f.size, sp = opts.spacing || 0;
+        const sc = size / f.size, sp = opts.spacing || 0;
         const w = fonts.measure(f, s) * sc + sp * Math.max(0, s.length - 1);
         let pen = opts.align === 'center' ? x - w / 2 : opts.align === 'right' ? x - w : x;
         let cnt = 0;
@@ -244,15 +253,14 @@ class Recorder {
             pen += g[6] * sc + sp;
         }
         if (cnt) {
-            const aid = atlasId(f, family); this.atlases.add(aid);
+            const aid = atlasId(f, f.family || family); this.atlases.add(aid);
             u[head] = OP.GLYPHS; u[head + 1] = aid; u[head + 2] = pack(c); u[head + 3] = cnt;
             this.n = i;
         }
         return w;
     }
     textWidth(str, size, opts) {
-        const f = fonts.get((opts && opts.font) || 'label', size * this.textScale);
-        const s = String(str);
+        const s = opts && opts.literal ? String(str) : t(str), f = fonts.get((opts && opts.font) || 'label', size * this.textScale, s);
         return f ? fonts.measure(f, s) * (size / f.size) + ((opts && opts.spacing) || 0) * Math.max(0, s.length - 1) : 0;
     }
 

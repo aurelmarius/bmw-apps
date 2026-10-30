@@ -1,8 +1,8 @@
 {
   "id": "engine_care",
   "title": "Engine Care",
-  "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
-  "version": "1.4.0",
+  "description": "PHEV B48 operating hours, EV vs ICE split, cold hard starts, engine runs that never warm the oil, battery charge at engine starts and true oil degradation next to BMW CBS",
+  "version": "1.5.0",
   "vendor": "custom",
   "loggingId": "OA9E",
   "iconGlyph": "engine",
@@ -125,6 +125,61 @@
         180,
         220
       ]
+    },
+    {
+      "key": "warmTarget",
+      "label": "Oil counts as warm at",
+      "type": "number",
+      "unit": "°C",
+      "default": 90,
+      "steps": [
+        80,
+        85,
+        90,
+        95,
+        100
+      ]
+    },
+    {
+      "key": "shortCycleH",
+      "label": "Wear of an engine run that never warmed the oil",
+      "type": "number",
+      "unit": "h",
+      "default": 1,
+      "steps": [
+        0,
+        0.5,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "key": "socReserve",
+      "label": "Battery reserve (engine has to start)",
+      "type": "number",
+      "unit": "%",
+      "default": 15,
+      "steps": [
+        5,
+        10,
+        15,
+        20,
+        25,
+        30
+      ]
+    },
+    {
+      "key": "diagPage",
+      "label": "Diagnostics page",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "logDrive",
+      "label": "Record drive data (for replay)",
+      "type": "bool",
+      "default": false
     },
     {
       "key": "theme",
