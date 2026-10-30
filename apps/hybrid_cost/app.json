@@ -1,7 +1,7 @@
 {
   "id": "hybrid_cost",
   "title": "Hybrid Cost",
-  "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive fuel/electricity price configurator",
+  "description": "PHEV running cost calculator: live electric vs petrol cost per 100 km in 11 currencies, dynamic torque split, trip savings and a price editor for fuel and electricity",
   "version": "1.1.0",
   "vendor": "custom",
   "loggingId": "OA9D",
