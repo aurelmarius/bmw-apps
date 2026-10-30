@@ -314,7 +314,6 @@ def build(app_id):
     src = os.path.join(stage, 'source')
     os.makedirs(os.path.join(src, 'javascript', 'kit'))
     os.makedirs(os.path.join(src, 'config'))
-    os.makedirs(os.path.join(src, 'node_modules', 'oap-sdk'))
 
     manifest = manifest_for(json.loads(json.dumps(spec)))
     xml, uidesc, strings, state_ids = build_ui(spec)
@@ -337,7 +336,7 @@ def build(app_id):
     json.dump(pkg, open(os.path.join(src, 'package.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
     json.dump(manifest, open(os.path.join(src, 'manifest.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
     shutil.copy(os.path.join(KIT, 'platform', 'permissions.json'), os.path.join(src, 'permissions.json'))
-    json.dump({'name': app_id, 'version': ver, 'lockfileVersion': 1}, open(os.path.join(src, 'npm-shrinkwrap.json'), 'w', encoding='utf-8', newline='\n'))
+    json.dump({'name': app_id, 'version': ver, 'lockfileVersion': 1, 'requires': True, 'dependencies': {}}, open(os.path.join(src, 'npm-shrinkwrap.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
     json.dump({'settings': {app_id: spec.get('config', {})}}, open(os.path.join(src, 'config', 'base.json'), 'w', encoding='utf-8', newline='\n'), indent=2)
     # app code
     adir = os.path.join(APPS, app_id)
@@ -345,7 +344,7 @@ def build(app_id):
     for f in os.listdir(adir):
         if f.endswith('.js'):
             shutil.copy(os.path.join(adir, f), os.path.join(src, 'javascript', 'app.js' if f == 'main.js' else f))
-        elif f.endswith(('.wasm', '.wad')) or f in ('LICENSE', 'NOTICE'):
+        elif (f.endswith(('.wasm', '.wad', '.json')) and f != 'app.json') or f in ('LICENSE', 'NOTICE'):
             # files the app reads as they are (doom: the game as WebAssembly, its data, its licences)
             shutil.copy(os.path.join(adir, f), os.path.join(src, 'javascript', f))
         elif os.path.isdir(os.path.join(adir, f)):
@@ -368,8 +367,11 @@ def build(app_id):
     rt_spec = {k: spec.get(k) for k in ('id', 'title', 'version', 'screens', 'settings', 'config')}
     rt_spec['stateIds'] = state_ids
     json.dump(rt_spec, open(os.path.join(src, 'javascript', 'kit', 'app-spec.json'), 'w', encoding='utf-8', newline='\n'), indent=1)
-    shutil.copy(os.path.join(SDK, 'index.js'), os.path.join(src, 'node_modules', 'oap-sdk', 'index.js'))
-    shutil.copy(os.path.join(SDK, 'package.json'), os.path.join(src, 'node_modules', 'oap-sdk', 'package.json'))
+    sdk_index = os.path.join(SDK, 'index.js')
+    if os.path.exists(sdk_index) and os.path.getsize(sdk_index) > 500:
+        os.makedirs(os.path.join(src, 'node_modules', 'oap-sdk'), exist_ok=True)
+        shutil.copy(sdk_index, os.path.join(src, 'node_modules', 'oap-sdk', 'index.js'))
+        shutil.copy(os.path.join(SDK, 'package.json'), os.path.join(src, 'node_modules', 'oap-sdk', 'package.json'))
 
     # --- rhmiData: package format (inside source/) and installed format ---
     icon = spec['id'] + '_icon.png'
@@ -434,7 +436,11 @@ def build(app_id):
             tf.add(os.path.join(stage, n), arcname=n)
     npm = os.path.join(DIST, f'{app_id}@{ver}.tgz')
     with tarfile.open(npm, 'w:gz') as tf:
-        tf.add(src, arcname='package')
+        def npm_filter(tarinfo):
+            if 'node_modules/oap-sdk' in tarinfo.name:
+                return None
+            return tarinfo
+        tf.add(src, arcname='package', filter=npm_filter)
     print(f'{app_id} {ver}: {os.path.relpath(bundle, ROOT)} ({os.path.getsize(bundle) // 1024} KiB), '
           f'{len(uidesc["containers"])} screens, states {state_ids}')
 

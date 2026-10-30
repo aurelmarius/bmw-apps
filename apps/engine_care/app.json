@@ -2,7 +2,7 @@
   "id": "engine_care",
   "title": "Engine Care",
   "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "vendor": "custom",
   "loggingId": "OA9C",
   "iconGlyph": "engine",

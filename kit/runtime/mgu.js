@@ -24,7 +24,11 @@ const { OnlineApp, logging } = require('oap-sdk');
 const themes = require('./themes');
 const { Display } = require('./display');
 
-const sdkLog = logging.getSDKLogger();
+const sdkLog = (logging && typeof logging.getSDKLogger === 'function')
+    ? logging.getSDKLogger()
+    : (logging && typeof logging.getLogger === 'function')
+        ? logging.getLogger()
+        : { error() {}, warn() {}, info() {}, debug() {} };
 const SPEC = JSON.parse(fs.readFileSync(path.join(__dirname, 'app-spec.json'), 'utf8'));
 
 /* ---------------- paths ---------------- */

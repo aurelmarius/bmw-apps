@@ -5,34 +5,34 @@
     {
       "id": "engine_care",
       "kind": "app",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "title": "Engine Care",
       "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "engine_care@1.0.0.tgz",
-        "size": 393015,
-        "sha256": "01a3e73fb335299c1dead85fed71abd9f6ea3d4a019cc9d7c164d5c8de5aa6b5",
-        "url": "packages/engine_care@1.0.0.tgz"
+        "name": "engine_care@1.0.1.tgz",
+        "size": 529387,
+        "sha256": "ec8685a114bce8e05a41f18c19057e95919a9fb955772faea3222939ee6f676e",
+        "url": "packages/engine_care@1.0.1.tgz"
       },
       "uninstallable": true
     },
     {
       "id": "hybrid_cost",
       "kind": "app",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "title": "Hybrid Cost",
       "description": "PHEV running cost calculator, live electric vs petrol RON/100km, dynamic torque split and interactive fuel/electricity price configurator",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "hybrid_cost@1.0.0.tgz",
-        "size": 393818,
-        "sha256": "d1a10d6015d616addb0ab56cc9dea5754db64d4561be1f1e6fe615f62ab0a922",
-        "url": "packages/hybrid_cost@1.0.0.tgz"
+        "name": "hybrid_cost@1.0.1.tgz",
+        "size": 530400,
+        "sha256": "57e60720222bef4e5f8c42f7e9f346fbf86b18bf83e41fba13aaa605e12fcca1",
+        "url": "packages/hybrid_cost@1.0.1.tgz"
       },
       "uninstallable": true
     }
