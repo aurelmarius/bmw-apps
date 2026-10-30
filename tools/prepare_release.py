@@ -21,7 +21,6 @@ def main():
     components = []
     notes = [
         '### 🚗 BMW iDrive 7 Custom Apps\n',
-        'This is an automated **Draft Release**. Review the packages below and click **Publish release** to make them available in the car\'s Store.\n',
         '#### Included Applications:\n'
     ]
 
