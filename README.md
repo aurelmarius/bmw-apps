@@ -23,6 +23,11 @@ BMW PHEV powertrains frequently start the combustion engine (ICE) directly while
 * **Diagnostics Page** (setting): every signal with its age, the engine unit's raw UDS answers, the cluster's raw CBS data, whether the app counts with its screen closed and whether the torque signal includes the e-motor.
 * **Drive Recording** (setting): one line a second of what the app got from the car, to replay on a PC (see Development).
 
+![Engine Care - oil health, PHEV runtime split, cold starts](docs/screenshots/engine_care-oil-health.png)
+![Engine Care - current trip and service history](docs/screenshots/engine_care-trip.png)
+![Engine Care - diagnostics page](docs/screenshots/engine_care-diagnostics.png)
+<sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
+
 ### 2. ⚡ Hybrid Cost (`hybrid_cost`)
 *Real-time running cost & energy split calculator.*
 
@@ -33,6 +38,11 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 * **Price Editor**: Tap a price (or press "Petrol Price" / "Elec Price") and set it with the iDrive controller (turn to change, press to save), +/- buttons or a numeric keypad. Without the GPU renderer, the buttons step through round prices for the chosen currency.
 * **Multi-Currency Support**: RON, EUR, USD, GBP, CHF, PLN, HUF, CZK, SEK, NOK, DKK - each with typical prices and its own decimals; prices are kept separately for every currency.
 * **Trip Cost Summary**: Financial tracking for current trip, last charge, and cumulative usage.
+
+![Hybrid Cost - live cost, power split, trip savings](docs/screenshots/hybrid_cost-live-cost.png)
+![Hybrid Cost - trip energy and prices](docs/screenshots/hybrid_cost-trip-prices.png)
+![Hybrid Cost - price editor](docs/screenshots/hybrid_cost-price-editor.png)
+<sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
 ---
 
@@ -83,6 +93,7 @@ node kit/tools/preview.js dist/engine_care preview      # what the app draws, as
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
+node tools/screenshots.js                               # the README's screenshots (after a build)
 ```
 
 Engine Care's bookkeeping is in `apps/engine_care/model.js`; `main.js` reads the car and draws. A drive recorded in the car (setting "Record drive data", file `engine_care_drive.jsonl` in the app's data folder) can be replayed with other settings, e.g. `--set warmTarget=85`.
