@@ -2,11 +2,15 @@
 /**
  * Hybrid Cost & Optimizer - PHEV Running Cost & Energy Management for BMW 330e
  * Features:
- *   - Live running cost comparison: Electric vs Petrol (RON / 100 km)
+ *   - Live running cost comparison: Electric vs Petrol (cost / 100 km)
  *   - Real-time ICE vs e-Motor torque/power split (Nm & kW)
  *   - Trip financial tracker: money spent vs money saved compared to pure petrol car
- *   - Regenerative braking energy harvest tracker (kWh & RON recovered)
- *   - On-screen interactive price adjuster for fuel (RON/L) and electricity (RON/kWh)
+ *   - Regenerative braking energy harvest tracker (kWh & money recovered)
+ *   - On-screen interactive price adjuster for fuel (per L) and electricity (per kWh)
+ *
+ * The bookkeeping is in model.js (tested in tests/hybrid_cost.test.js); this file reads the car and draws.
+ * Time, energy and cost are added up on a 1 s clock from the last values the car sent (the signals
+ * only notify on change). Demo data runs through its own in-memory tracker and is never saved.
  */
 const fs = require('fs');
 const path = require('path');
@@ -14,6 +18,8 @@ const mgu = require('./kit/mgu');
 const { withAlpha } = require('./kit/canvas');
 const G = require('./kit/gauges');
 const Car = require('./kit/car');
+const { fitText } = require('./kit/text-layout');
+const M = require('./model');
 
 const W = 1600, H = 520;
 const GREEN = '#2fd27a';
@@ -21,157 +27,140 @@ const BLUE = '#2a8cff';
 const YELLOW = '#ffb020';
 const RED = '#ef2b2d';
 
+const TICK_MS = 1000;                // time / energy / cost are added up on this clock
+const LIVE_MS = 60000;               // the car counts as there while it sent anything this recently
+const CONFIRM_MS = 5000;             // "Reset Trip" needs a second press within this
+const SAVE_MS = 15000;
+const STATE_FILE = 'hybrid_cost_state.json';
+const OLD_STATE_FILE = 'hybrid_cost_trip.json';   // up to 1.0.2: seeded with made-up values and demo data, not taken over
+
 mgu.run({
     async start(ctx) {
-        const { ui, settings, dataDir } = ctx;
+        const { ui, settings, dataDir, log } = ctx;
         const car = new Car(ctx, ['rpm', 'speed', 'temps', 'torque', 'accel']);
 
-        const saveFile = path.join(dataDir, 'hybrid_cost_trip.json');
-
-        // Trip accumulation state
-        let trip = {
-            distanceMeters: 41200,      // 41.2 km baseline
-            evMeters: 28600,            // 28.6 km EV
-            iceMeters: 12600,           // 12.6 km ICE
-            kwhConsumed: 5.4,           // 5.4 kWh used
-            fuelLitersConsumed: 0.95,   // 0.95 L petrol used
-            regenKwhHarvested: 1.85,    // 1.85 kWh generated from braking
-            startTime: Date.now() - 48 * 60 * 1000,
-        };
-
-        try {
-            if (fs.existsSync(saveFile)) {
-                const loaded = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
-                if (loaded && loaded.distanceMeters !== undefined) trip = loaded;
-            }
-        } catch (e) {
-            ctx.log.warn('Could not load trip state:', e.message);
-        }
-
-        function saveTrip() {
-            try {
-                fs.writeFileSync(saveFile, JSON.stringify(trip, null, 2));
-            } catch (e) {}
-        }
-
-        let activeTab = 0; // 0 = Live Cost & Power, 1 = Trip Savings & Prices
-        let lastT = 0;
-        let lastSave = 0;
-        let toastMessage = null;
-        let toastUntil = 0;
-
-        function showToast(msg) {
-            toastMessage = msg;
-            toastUntil = Date.now() + 4000;
-        }
-
-        /* ---------- Telemetry Sampling ---------- */
-        car.onSample((d, t) => {
-            const dt = lastT ? Math.min(1.0, (t - lastT) / 1000) : 0.05;
-            lastT = t;
-
-            const speed = d.speed || 0;
-            const rpm = d.rpm || 0;
-            const torque = d.torque || 0;
-            const gLong = d.gLong || 0;
-            const isIceRunning = rpm > 400;
-
-            const dist = (speed / 3.6) * dt;
-            trip.distanceMeters += dist;
-
-            if (isIceRunning) {
-                trip.iceMeters += dist;
-                // Fuel consumption model: ~6.5 L/100km base at cruise, scaling with torque
-                const litersPerSec = (6.5 / 100 / 1000) * (speed / 3.6) * Math.max(0.6, torque / 140);
-                trip.fuelLitersConsumed += litersPerSec * dt;
-            } else if (speed > 3) {
-                trip.evMeters += dist;
-                // Electric consumption model: ~17 kWh/100km base
-                const kwhPerSec = (17.5 / 100 / 1000) * (speed / 3.6) * Math.max(0.5, torque / 100);
-                trip.kwhConsumed += kwhPerSec * dt;
-            }
-
-            // Regenerative braking: when decelerating (gLong < -0.05)
-            if (gLong < -0.05 && speed > 5) {
-                const regenPowerKw = Math.min(45, Math.abs(gLong) * 1.8 * speed);
-                const regenKwh = (regenPowerKw * dt) / 3600;
-                trip.regenKwhHarvested += regenKwh;
-            }
-
-            if (Date.now() - lastSave > 15000) {
-                lastSave = Date.now();
-                saveTrip();
-            }
+        /** a number setting; 0 is a value (only a missing one takes the default from app.json) */
+        const specOf = (k) => ((ctx.spec && ctx.spec.settings) || []).find((x) => x.key === k) || {};
+        const num = (k, d) => { const v = settings.get(k); const def = specOf(k).default !== undefined ? specOf(k).default : d; return v === undefined || v === null || v === '' || isNaN(Number(v)) ? def : Number(v); };
+        const cfg = () => ({
+            petrolPrice: num('petrolPrice', 7.5), elecPrice: num('elecPrice', 0.8),
+            purePetrolAvg: num('purePetrolAvg', 8.5), monthlyKm: num('monthlyKm', 1200),
         });
+        const cur = () => String(settings.get('currency') || specOf('currency').default || 'RON');
+
+        let toastMessage = null, toastUntil = 0;
+        function showToast(msg, ms) {
+            toastMessage = msg;
+            toastUntil = Date.now() + (ms || 4000);
+        }
+
+        const saveFile = path.join(dataDir, STATE_FILE);
+        if (fs.existsSync(path.join(dataDir, OLD_STATE_FILE)) && !fs.existsSync(saveFile)) log.info('trip state of 1.0.x not taken over (it held demo data): starting at 0');
+        const tracker = new M.Tracker(M.loadState(saveFile, log), { log });
+        // demo: the same bookkeeping on the simulated drive, in memory only - never saved, never mixed in
+        let demoTracker = null;
+        let lastSave = 0;
+        function save() {
+            try {
+                M.saveState(saveFile, tracker.state);
+                tracker.dirty = false;
+                lastSave = Date.now();
+            } catch (e) {
+                log.warn('Could not save hybrid_cost state: ' + e.message);
+            }
+        }
+        process.on('exit', () => { if (tracker.dirty) save(); });
+
+        /* ---------- The clock: one tick a second ---------- */
+        function tick() {
+            const now = Date.now(), d = car.data();
+            if (d.demo) {
+                tracker.pause();
+                if (!demoTracker) demoTracker = new M.Tracker(M.freshState(now), {});
+                demoTracker.tick({ now, live: true, rpm: d.rpm, rpmAge: 0, speed: d.speed, speedAge: 0,
+                    torque: d.torque, torqueAge: 0, gLong: d.gLong, gLongAge: 0 });
+                return;
+            }
+            demoTracker = null;
+            const live = car.lastCar > 0 && now - car.lastCar < LIVE_MS;
+            tracker.tick({
+                now, live,
+                rpm: car.live.rpm, rpmAge: car.age('rpm'),
+                speed: car.live.speed, speedAge: car.age('speed'),
+                torque: car.live.torque, torqueAge: car.age('torque'),
+                gLong: car.live.gLong, gLongAge: car.age('gLong'),
+            });
+            if (tracker.dirty && now - lastSave > SAVE_MS) save();
+        }
+        setInterval(tick, TICK_MS);
+        /** what the screen shows: the simulated drive in demo, else the car */
+        const view = (d) => (d.demo && demoTracker ? demoTracker : tracker);
 
         /* ---------- Button Actions ---------- */
+        let activeTab = 0; // 0 = Live Cost & Power, 1 = Trip Savings & Prices
+        let resetArmed = 0;
         ui.onClick('BTN_PAGE', () => {
             activeTab = (activeTab + 1) % 2;
+            resetArmed = 0;
             render();
         });
+        if (ctx.onTab) ctx.onTab((i) => { activeTab = i; resetArmed = 0; render(); });
 
-        const fuelSteps = [6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0];
-        const elecSteps = [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 3.5, 4.0];
-
+        /** the next of the setting's steps (app.json) above the current value, wrapping round */
+        function cycle(key, fallback) {
+            const steps = specOf(key).steps || fallback;
+            const current = num(key, steps[0]);
+            const idx = steps.findIndex((s) => s > current + 1e-6);
+            const next = idx >= 0 ? steps[idx] : steps[0];
+            settings.set(key, next);
+            return next;
+        }
         ui.onClick('BTN_ADJ_FUEL', () => {
-            const current = settings.get('petrolPrice') || 7.5;
-            let idx = fuelSteps.findIndex((s) => s > current + 0.05);
-            let next = idx >= 0 ? fuelSteps[idx] : fuelSteps[0];
-            settings.set('petrolPrice', next);
-            showToast(`Petrol set to ${next.toFixed(2)} RON/L`);
+            const next = cycle('petrolPrice', [6.5, 7.0, 7.5, 8.0, 8.5, 9.0]);
+            showToast(`Petrol set to ${next.toFixed(2)} ${cur()}/L`);
             render();
         });
-
         ui.onClick('BTN_ADJ_ELEC', () => {
-            const current = settings.get('elecPrice') || 0.8;
-            let idx = elecSteps.findIndex((s) => s > current + 0.05);
-            let next = idx >= 0 ? elecSteps[idx] : elecSteps[0];
-            settings.set('elecPrice', next);
-            showToast(`Elec set to ${next.toFixed(2)} RON/kWh`);
+            const next = cycle('elecPrice', [0.6, 0.8, 1.0, 1.2, 1.5, 2.0]);
+            showToast(`Electricity set to ${next.toFixed(2)} ${cur()}/kWh`);
             render();
         });
 
+        // first press arms the reset, a second one within 5 s does it
         ui.onClick('BTN_RESET', () => {
-            trip.distanceMeters = 0;
-            trip.evMeters = 0;
-            trip.iceMeters = 0;
-            trip.kwhConsumed = 0;
-            trip.fuelLitersConsumed = 0;
-            trip.regenKwhHarvested = 0;
-            trip.startTime = Date.now();
-            saveTrip();
+            if (car.data().demo) { resetArmed = 0; showToast('No reset in demo mode'); render(); return; }
+            if (Date.now() - resetArmed > CONFIRM_MS) {
+                resetArmed = Date.now();
+                showToast(`Press "Reset Trip" again to confirm (${CONFIRM_MS / 1000} s)`, CONFIRM_MS);
+                render();
+                return;
+            }
+            resetArmed = 0;
+            tracker.resetTrip(Date.now());
+            save();
             showToast('Trip cost counters reset to 0');
             render();
         });
 
-        /* ---------- Calculations ---------- */
-        function computeLiveCost(speed, torque, isIce) {
-            const pFuel = settings.get('petrolPrice') || 7.4;
-            const pElec = settings.get('elecPrice') || 0.8;
-
-            const v = Math.max(20, speed);
-            // Electric kWh/100km estimation based on speed & aero
-            const estKwh100 = Math.min(32, Math.max(13, 14.0 + Math.pow(v / 100, 2) * 8.5));
-            // Petrol L/100km estimation based on speed & load
-            const estFuel100 = Math.min(14, Math.max(4.8, 5.0 + Math.pow(v / 120, 2) * 2.8));
-
-            const costElec100 = Number((estKwh100 * pElec).toFixed(1));
-            const costPetrol100 = Number((estFuel100 * pFuel).toFixed(1));
-
-            // Hybrid recommendation
-            const isElectricCheaper = costElec100 < costPetrol100 && v < 118;
-
-            return { costElec100, costPetrol100, estKwh100, estFuel100, isElectricCheaper, pFuel, pElec };
-        }
-
         /* ---------- Rendering ---------- */
+        const fm = (v, dp) => (M.isNum(v) ? v.toFixed(dp) : '--');
+
         function render() {
             const t = ctx.theme();
             const d = car.data();
+            const tr = view(d);
+            const c = cfg();
             const cv = ctx.canvas(W, H).clear(t.bg);
 
-            const isIce = (d.rpm || 0) > 400;
-            const c = computeLiveCost(d.speed || 0, d.torque || 0, isIce);
+            // live: the tracker's view (stale rpm = engine off, a speed gone quiet after driving = unknown)
+            const isIce = tr.engineOn === true;
+            const live = {
+                rpm: isIce && M.isNum(d.rpm) ? d.rpm : 0,
+                speed: M.isNum(tr.speed) ? tr.speed : 0,
+                torque: M.isNum(tr.torque) ? tr.torque : 0,
+            };
+            const lc = M.liveCost(tr.speed, c);
+            const tc = M.tripCost(tr.state.trip, c);
 
             const badges = [
                 d.demo && { text: 'DEMO' },
@@ -180,55 +169,63 @@ mgu.run({
             G.frame(cv, t, ['Live Cost & Power Split', 'Trip Savings & Prices'], activeTab, badges);
 
             if (activeTab === 0) {
-                renderLiveCostTab(cv, t, d, c, isIce);
+                renderLiveCostTab(cv, t, live, c, lc, tc, tr, isIce);
             } else {
-                renderTripSavingsTab(cv, t, d, c);
+                renderTripSavingsTab(cv, t, c, tc, tr);
             }
 
             return ui.image('MAIN_GFX', cv);
         }
 
-        function renderLiveCostTab(cv, t, d, c, isIce) {
+        function renderLiveCostTab(cv, t, live, c, lc, tc, tr, isIce) {
+            const cu = cur();
+            const trip = tr.state.trip;
             // ===== PANEL 1 (Left): Live Cost Comparison =====
             G.panel(cv, t, 24, 44, 490, 468, 'Live Cost Comparison');
 
             cv.text('RUNNING COST / 100 KM', 48, 110, 20, t.dim, { font: 'bold', spacing: 1 });
 
             // Electric Cost per 100km
+            const e100 = lc.elec100.toFixed(1), p100 = lc.petrol100.toFixed(1);
             cv.text('ELECTRIC', 48, 145, 20, BLUE, { font: 'bold' });
-            cv.text(String(c.costElec100), 48, 195, 54, BLUE, { font: 'num' });
-            cv.text('RON / 100 km', 52 + cv.textWidth(String(c.costElec100), 54, { font: 'num' }), 195, 24, t.dim);
-            cv.text(`est. ${c.estKwh100.toFixed(1)} kWh/100km @ ${c.pElec.toFixed(2)} lei`, 48, 225, 19, t.dim);
+            cv.text(e100, 48, 195, 54, BLUE, { font: 'num' });
+            cv.text(`${cu} / 100 km`, 52 + cv.textWidth(e100, 54, { font: 'num' }), 195, 24, t.dim);
+            cv.text(fitText(cv, `est. ${lc.kwh100.toFixed(1)} kWh/100km @ ${c.elecPrice.toFixed(2)} ${cu}/kWh`, 19, 442), 48, 225, 19, t.dim);
 
             // Petrol Cost per 100km
             cv.text('PETROL (B48)', 48, 268, 20, t.accent, { font: 'bold' });
-            cv.text(String(c.costPetrol100), 48, 318, 54, t.text, { font: 'num' });
-            cv.text('RON / 100 km', 52 + cv.textWidth(String(c.costPetrol100), 54, { font: 'num' }), 318, 24, t.dim);
-            cv.text(`est. ${c.estFuel100.toFixed(1)} L/100km @ ${c.pFuel.toFixed(2)} lei`, 48, 348, 19, t.dim);
+            cv.text(p100, 48, 318, 54, t.text, { font: 'num' });
+            cv.text(`${cu} / 100 km`, 52 + cv.textWidth(p100, 54, { font: 'num' }), 318, 24, t.dim);
+            cv.text(fitText(cv, `est. ${lc.fuel100.toFixed(1)} L/100km @ ${c.petrolPrice.toFixed(2)} ${cu}/L`, 19, 442), 48, 348, 19, t.dim);
 
             cv.fillRect(48, 375, 442, 1.5, withAlpha('#ffffff', 0.15));
 
             // Efficiency Sweet-spot Badge
-            const savingsPct = Math.round((1 - c.costElec100 / c.costPetrol100) * 100);
-            if (c.isElectricCheaper) {
+            const savingsPct = Math.round((1 - lc.elec100 / lc.petrol100) * 100);
+            if (lc.electricCheaper) {
                 cv.fillRect(48, 395, 442, 60, withAlpha(GREEN, 0.15));
                 cv.strokeRoundRect(48, 395, 442, 60, 6, 1.5, withAlpha(GREEN, 0.5));
                 cv.text(`ELECTRIC IS ${savingsPct}% CHEAPER`, 64, 424, 22, GREEN, { font: 'bold' });
                 cv.text('Optimal mode: Pure Electric (Max eDrive)', 64, 445, 18, t.dim);
+            } else if (lc.elec100 >= lc.petrol100) {
+                cv.fillRect(48, 395, 442, 60, withAlpha(YELLOW, 0.15));
+                cv.strokeRoundRect(48, 395, 442, 60, 6, 1.5, withAlpha(YELLOW, 0.5));
+                cv.text(`PETROL IS ${-savingsPct}% CHEAPER`, 64, 424, 21, YELLOW, { font: 'bold' });
+                cv.text('At these prices, electricity costs more per km', 64, 445, 18, t.dim);
             } else {
                 cv.fillRect(48, 395, 442, 60, withAlpha(YELLOW, 0.15));
                 cv.strokeRoundRect(48, 395, 442, 60, 6, 1.5, withAlpha(YELLOW, 0.5));
                 cv.text('HIGHWAY: PETROL RECOMMENDED', 64, 424, 21, YELLOW, { font: 'bold' });
-                cv.text('Speed > 118 km/h: Save battery for city traffic', 64, 445, 18, t.dim);
+                cv.text(`Speed > ${M.EV_MAX_KMH} km/h: Save battery for city traffic`, 64, 445, 18, t.dim);
             }
 
-            cv.text(`Rates: ${c.pFuel.toFixed(2)} RON/L (Petrol)  ·  ${c.pElec.toFixed(2)} RON/kWh (Elec)`, 48, 485, 18, t.dim);
+            cv.text(fitText(cv, `Rates: ${c.petrolPrice.toFixed(2)} ${cu}/L (Petrol)  ·  ${c.elecPrice.toFixed(2)} ${cu}/kWh (Elec)`, 18, 442), 48, 485, 18, t.dim);
 
             // ===== PANEL 2 (Center): Dynamic Power / Torque Split =====
             G.panel(cv, t, 538, 44, 524, 468, 'Dynamic Torque & Power');
 
-            const rpm = d.rpm || 0;
-            const totalTorque = Math.max(0, d.torque || 0);
+            const rpm = live.rpm;
+            const totalTorque = Math.max(0, live.torque);
 
             // 330e hybrid power split calculation
             let iceTorque = 0;
@@ -244,7 +241,7 @@ mgu.run({
             iceTorque = Math.round(iceTorque * 100) / 100;
 
             const iceKw = Math.round((iceTorque * Math.max(800, rpm)) / 9549);
-            const evKw = Math.round((evTorque * Math.max(800, rpm > 400 ? rpm : (d.speed || 0) * 35)) / 9549);
+            const evKw = Math.round((evTorque * Math.max(800, isIce ? rpm : live.speed * 35)) / 9549);
             const totalKw = iceKw + evKw;
             const totalHp = Math.round(totalKw * 1.36);
 
@@ -269,7 +266,7 @@ mgu.run({
             // Petrol Engine Output
             cv.text('B48 PETROL ENGINE', 562, 265, 20, t.accent, { font: 'bold' });
             cv.text(`${iceKw} kW  ·  ${iceTorque.toFixed(2)} Nm`, 562, 305, 34, isIce ? t.text : t.dim, { font: 'bold' });
-            cv.text(isIce ? `Running at ${Math.round(rpm)} rpm` : 'Engine Off (Decoupled K0)', 562, 335, 19, t.dim);
+            cv.text(isIce ? `Running at ${Math.round(rpm)} rpm` : tr.engineOn === null ? 'Engine state not known yet' : 'Engine Off (Decoupled K0)', 562, 335, 19, t.dim);
 
             // Electric Motor Output
             cv.text('ZF8 ELECTRIC MOTOR', 562, 380, 20, BLUE, { font: 'bold' });
@@ -281,22 +278,13 @@ mgu.run({
             // ===== PANEL 3 (Right): Trip Cost & Savings =====
             G.panel(cv, t, 1086, 44, 490, 468, 'Trip Cost & Savings');
 
-            const tripFuelCost = trip.fuelLitersConsumed * c.pFuel;
-            const tripElecCost = trip.kwhConsumed * c.pElec;
-            const totalTripCost = tripFuelCost + tripElecCost;
-
-            // Baseline cost if driven pure petrol @ baseline L/100km
-            const baselineL100 = settings.get('purePetrolAvg') || 8.5;
-            const purePetrolEquivalentCost = ((trip.distanceMeters / 1000) / 100) * baselineL100 * c.pFuel;
-            const moneySaved = Math.max(0, purePetrolEquivalentCost - totalTripCost);
-
             cv.text('TRIP TOTAL COST', 1110, 110, 20, t.dim, { font: 'bold', spacing: 1 });
-            cv.text(`${totalTripCost.toFixed(2)}`, 1110, 160, 52, t.text, { font: 'num' });
-            cv.text('RON', 1118 + cv.textWidth(totalTripCost.toFixed(2), 52, { font: 'num' }), 160, 26, t.dim);
+            cv.text(`${tc.total.toFixed(2)}`, 1110, 160, 52, t.text, { font: 'num' });
+            cv.text(cu, 1118 + cv.textWidth(tc.total.toFixed(2), 52, { font: 'num' }), 160, 26, t.dim);
 
             // Sub-breakdown
-            cv.text(`Fuel: ${tripFuelCost.toFixed(2)} lei (${trip.fuelLitersConsumed.toFixed(2)} L)`, 1110, 200, 21, t.accent);
-            cv.text(`Elec: ${tripElecCost.toFixed(2)} lei (${trip.kwhConsumed.toFixed(1)} kWh)`, 1110, 230, 21, BLUE);
+            cv.text(fitText(cv, `Fuel: ${tc.fuel.toFixed(2)} ${cu} (${trip.fuelLitersConsumed.toFixed(2)} L)`, 21, 442), 1110, 200, 21, t.accent);
+            cv.text(fitText(cv, `Elec: ${tc.elec.toFixed(2)} ${cu} (${trip.kwhConsumed.toFixed(1)} kWh)`, 21, 442), 1110, 230, 21, BLUE);
 
             cv.fillRect(1110, 255, 442, 1.5, withAlpha('#ffffff', 0.15));
 
@@ -304,31 +292,34 @@ mgu.run({
             cv.fillRect(1110, 280, 442, 85, withAlpha(GREEN, 0.16));
             cv.strokeRoundRect(1110, 280, 442, 85, 6, 1.5, withAlpha(GREEN, 0.6));
             cv.text('TOTAL SAVINGS THIS TRIP', 1130, 310, 20, GREEN, { font: 'bold' });
-            cv.text(`+${moneySaved.toFixed(2)} RON`, 1130, 348, 38, GREEN, { font: 'bold' });
-            cv.text(`vs petrol car @ ${baselineL100} L/100km`, 1330, 348, 19, t.dim);
+            const savedStr = `+${tc.saved.toFixed(2)} ${cu}`;
+            cv.text(savedStr, 1130, 348, 38, GREEN, { font: 'bold' });
+            const savedX = 1142 + cv.textWidth(savedStr, 38, { font: 'bold' });
+            cv.text(fitText(cv, `vs petrol car @ ${c.purePetrolAvg} L/100km`, 19, 1540 - savedX), savedX, 348, 19, t.dim);
 
             // Regen Energy Harvest
-            const regenLei = trip.regenKwhHarvested * c.pElec;
             cv.text('REGEN BRAKING HARVEST:', 1110, 405, 20, t.dim);
-            cv.text(`${trip.regenKwhHarvested.toFixed(2)} kWh`, 1110, 435, 26, GREEN, { font: 'bold' });
-            cv.text(`(+${regenLei.toFixed(2)} lei free energy)`, 1240, 435, 22, t.dim);
+            const regenStr = `${trip.regenKwhHarvested.toFixed(2)} kWh`;
+            cv.text(regenStr, 1110, 435, 26, GREEN, { font: 'bold' });
+            const regenX = 1122 + cv.textWidth(regenStr, 26, { font: 'bold' });
+            cv.text(fitText(cv, `(+${tc.regen.toFixed(2)} ${cu} free energy)`, 22, 1552 - regenX), regenX, 435, 22, t.dim);
 
-            const tripKm = (trip.distanceMeters / 1000).toFixed(1);
-            cv.text(`Trip Distance: ${tripKm} km  ·  Tap "Reset Trip" to clear`, 1110, 485, 18, t.dim);
+            cv.text(fitText(cv, `Trip Distance: ${tc.km.toFixed(1)} km  ·  Press "Reset Trip" twice to clear`, 18, 442), 1110, 485, 18, t.dim);
         }
 
-        function renderTripSavingsTab(cv, t, d, c) {
+        function renderTripSavingsTab(cv, t, c, tc, tr) {
+            const cu = cur();
+            const trip = tr.state.trip;
             // ===== TAB 1: Detailed Economics & Price Editor =====
             G.panel(cv, t, 24, 44, 760, 468, 'Trip Energy Breakdown');
 
-            const tripKm = Math.max(0.1, trip.distanceMeters / 1000);
-            const avgKwh100 = (trip.kwhConsumed / (trip.evMeters / 1000 || 1)) * 100;
-            const avgFuel100 = (trip.fuelLitersConsumed / (trip.iceMeters / 1000 || 1)) * 100;
-
             cv.text('PHEV ENERGY USAGE', 56, 110, 20, t.dim, { font: 'bold' });
+            const since = new Date(trip.start);
+            const pad = (n) => (n < 10 ? '0' : '') + n;
+            cv.text(`trip since ${pad(since.getHours())}:${pad(since.getMinutes())}  ·  new after ${M.TRIP_GAP_MS / 60000} min parked`, 750, 110, 17, t.dim, { align: 'right' });
 
             cv.text('Total Distance:', 56, 160, 24, t.dim);
-            cv.text(`${tripKm.toFixed(1)} km`, 380, 160, 26, t.text, { font: 'bold', align: 'right' });
+            cv.text(`${tc.km.toFixed(1)} km`, 380, 160, 26, t.text, { font: 'bold', align: 'right' });
 
             cv.text('Electric Distance:', 56, 210, 24, t.dim);
             cv.text(`${(trip.evMeters / 1000).toFixed(1)} km`, 380, 210, 26, BLUE, { font: 'bold', align: 'right' });
@@ -345,22 +336,18 @@ mgu.run({
             cv.text('Regen Recovered:', 430, 260, 24, t.dim);
             cv.text(`${trip.regenKwhHarvested.toFixed(2)} kWh`, 750, 260, 26, GREEN, { font: 'bold', align: 'right' });
 
+            cv.text(`avg ${fm(tc.avgKwh100, 1)} kWh/100km EV  ·  ${fm(tc.avgFuel100, 1)} L/100km petrol`, 56, 292, 17, t.dim);
+
             cv.fillRect(56, 310, 694, 1.5, withAlpha('#ffffff', 0.15));
 
-            // Monthly Projection Box
-            const monthlyKm = 1200;
-            const tripCostPerKm = (trip.fuelLitersConsumed * c.pFuel + trip.kwhConsumed * c.pElec) / tripKm;
-            const monthlyCost = monthlyKm * tripCostPerKm;
-            const purePetrolMonthly = monthlyKm * (8.5 / 100) * c.pFuel;
-            const monthlySavings = Math.max(0, purePetrolMonthly - monthlyCost);
-
+            // Monthly Projection Box (setting monthlyKm, at this trip's cost per km)
             cv.fillRect(56, 335, 694, 130, withAlpha(t.track, 0.6));
             cv.strokeRoundRect(56, 335, 694, 130, 8, 1.5, withAlpha(BLUE, 0.4));
 
-            cv.text('MONTHLY COST ESTIMATE (1,200 km / month)', 80, 370, 22, BLUE, { font: 'bold' });
-            cv.text(`PHEV Cost: ~${Math.round(monthlyCost)} RON / month`, 80, 410, 24, t.text, { font: 'bold' });
-            cv.text(`Pure Petrol Car (330i): ~${Math.round(purePetrolMonthly)} RON / month`, 80, 442, 22, t.dim);
-            cv.text(`Save ~${Math.round(monthlySavings)} RON/mo`, 730, 420, 28, GREEN, { font: 'bold', align: 'right' });
+            cv.text(`MONTHLY COST ESTIMATE (${Math.round(c.monthlyKm)} km / month)`, 80, 370, 22, BLUE, { font: 'bold' });
+            cv.text(tc.monthly === null ? 'PHEV Cost: -- (drive a little first)' : `PHEV Cost: ~${Math.round(tc.monthly)} ${cu} / month`, 80, 410, 24, t.text, { font: 'bold' });
+            cv.text(fitText(cv, `Petrol car @ ${c.purePetrolAvg} L/100km: ~${Math.round(tc.monthlyPetrol)} ${cu} / month`, 22, 440), 80, 442, 22, t.dim);
+            cv.text(tc.monthlySaved === null ? '' : `Save ~${Math.round(tc.monthlySaved)} ${cu}/mo`, 730, 420, 28, GREEN, { font: 'bold', align: 'right' });
 
             // ===== PANEL 2 (Right): Interactive Price Adjuster =====
             G.panel(cv, t, 816, 44, 760, 468, 'Interactive Price Settings');
@@ -372,27 +359,27 @@ mgu.run({
             cv.fillRect(848, 170, 330, 150, withAlpha(t.accent, 0.12));
             cv.strokeRoundRect(848, 170, 330, 150, 8, 1.5, withAlpha(t.accent, 0.4));
             cv.text('PETROL PRICE', 872, 205, 20, t.accent, { font: 'bold' });
-            cv.text(`${c.pFuel.toFixed(2)}`, 872, 258, 48, t.text, { font: 'num' });
-            cv.text('RON / Litre', 872 + cv.textWidth(c.pFuel.toFixed(2), 48, { font: 'num' }) + 10, 258, 22, t.dim);
+            cv.text(`${c.petrolPrice.toFixed(2)}`, 872, 258, 48, t.text, { font: 'num' });
+            cv.text(`${cu} / Litre`, 872 + cv.textWidth(c.petrolPrice.toFixed(2), 48, { font: 'num' }) + 10, 258, 22, t.dim);
             cv.text('Tap "Petrol Price" button to cycle', 872, 298, 18, t.dim);
 
             // Electricity Price Card
             cv.fillRect(1210, 170, 330, 150, withAlpha(BLUE, 0.12));
             cv.strokeRoundRect(1210, 170, 330, 150, 8, 1.5, withAlpha(BLUE, 0.4));
             cv.text('ELECTRICITY PRICE', 1234, 205, 20, BLUE, { font: 'bold' });
-            cv.text(`${c.pElec.toFixed(2)}`, 1234, 258, 48, BLUE, { font: 'num' });
-            cv.text('RON / kWh', 1234 + cv.textWidth(c.pElec.toFixed(2), 48, { font: 'num' }) + 10, 258, 22, t.dim);
+            cv.text(`${c.elecPrice.toFixed(2)}`, 1234, 258, 48, BLUE, { font: 'num' });
+            cv.text(`${cu} / kWh`, 1234 + cv.textWidth(c.elecPrice.toFixed(2), 48, { font: 'num' }) + 10, 258, 22, t.dim);
             cv.text('Tap "Elec Price" button to cycle', 1234, 298, 18, t.dim);
 
             // Settings description
             cv.fillRect(848, 345, 692, 1.5, withAlpha('#ffffff', 0.15));
             cv.text('Settings & Persistence:', 848, 385, 22, t.text, { font: 'bold' });
-            cv.text('- Prices are automatically saved in settings.json and persist across reboots.', 848, 415, 20, t.dim);
-            cv.text('- Full custom decimal values can also be selected in the Settings screen.', 848, 445, 20, t.dim);
-            cv.text('- Calculations adjust live without needing to restart the head unit.', 848, 475, 20, t.dim);
+            cv.text('- Prices are saved in the app settings and persist across reboots.', 848, 415, 20, t.dim);
+            cv.text(fitText(cv, `- Currency (${cu}), petrol car baseline and km per month: Settings screen.`, 20, 692), 848, 445, 20, t.dim);
+            cv.text(fitText(cv, '- Trip totals are saved; demo data is never counted or saved.', 20, 692), 848, 475, 20, t.dim);
         }
 
         ctx.loop('MAIN', 2, render);
-        render().then(() => ctx.log.info('Hybrid Cost first frame done')).catch((e) => ctx.log.warn('first render: ' + e));
+        render().then(() => log.info('Hybrid Cost first frame done')).catch((e) => log.warn('first render: ' + e));
     },
 });
