@@ -13,7 +13,9 @@ BMW PHEV powertrains frequently start the combustion engine (ICE) directly while
 
 * **Real Engine Operating Hours**: Tracks ICE runtime separate from EV driving.
 * **ICE vs EV Mileage Split**: Percentage and absolute km driven on pure electric vs petrol.
-* **Cold Hard-Start Counter**: Logs whenever the ICE is engaged while coolant temperature is below optimal threshold (< 65°C) under high torque load (> 150 Nm).
+* **Cold Hard-Start Counter**: Logs whenever the ICE starts while the engine oil is below the cold threshold (default < 65°C) and is then put under high torque load (default > 150 Nm) or above 3,200 rpm. The oil temperature comes from the CDS bus, or from the engine unit (OBD PID 5C) when the car doesn't send it there; the coolant temperature is the last fallback.
+* **Real Distance**: Km since the oil change are read from the engine unit (OBD odometer PID A6, or PID 31), estimated from the speed only when it doesn't answer.
+* **BMW CBS Side by Side**: Shows the instrument cluster's own oil service countdown (distance, date, overdue) next to your own target - for display only, as BMW's countdown is condition based and not a distance counter.
 * **True Oil Life Monitor**: Calculates actual oil degradation based on thermal cycles, cold starts, and combustion engine hours.
 * **Configurable Thresholds**: Customizable service limits (120h–250h or 6,000–15,000 km).
 

@@ -77,7 +77,7 @@ class Car {
         this.ctx = ctx; this.log = ctx.log;
         const over = (ctx.spec.config && ctx.spec.config.scaling) || {};
         this.S = Object.assign({}, SCALE, over);
-        this.live = {}; this.lastCar = 0; this.listeners = [];
+        this.live = {}; this.liveT = {}; this.lastCar = 0; this.listeners = [];
         this.sim = new Sim(); this.simData = this.sim.sample();
         this.demoActive = false; this.guess = new GearGuess();
         const sc = (k, raw) => {
@@ -87,7 +87,7 @@ class Car {
         };
         const put = (k, v, tick) => {
             if (v === null || v === undefined || (typeof v === 'number' && !isFinite(v))) return;
-            this.live[k] = v; this.lastCar = Date.now();
+            this.live[k] = v; this.lastCar = Date.now(); this.liveT[k] = this.lastCar;
             // learned gear while driving; nothing at a standstill - the guess can't tell P, N or D
             // there, and "N" shown in park or in D was wrong
             if (k === 'rpm' || k === 'speed') { const g = this.guess.feed(this.live.rpm, this.live.speed); if (g !== null || this.live.speed < 3) this.guessed = this.live.speed < 3 ? undefined : g; }
@@ -161,6 +161,12 @@ class Car {
         if (d.gear === undefined && !this.demoActive) { d.gear = this.guessed; d.gearGuessed = true; }
         return d;
     }
+
+    /**
+     * Milliseconds since the car last sent value k (live data only), or Infinity if never.
+     * Fields are notified on change, so an old value may still be current (rpm 0 with the engine off).
+     */
+    age(k) { return this.liveT[k] ? Date.now() - this.liveT[k] : Infinity; }
 
     /** fn(data, tMs) per sample; fn.reset() (optional) when the source switches live<->demo. */
     onSample(fn, reset) { this.listeners.push({ fn, reset }); }

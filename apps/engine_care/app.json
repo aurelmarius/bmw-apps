@@ -2,9 +2,9 @@
   "id": "engine_care",
   "title": "Engine Care",
   "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "vendor": "custom",
-  "loggingId": "OA9C",
+  "loggingId": "OA9E",
   "iconGlyph": "engine",
   "signals": {
     "de.bmw.infotainment.vehicle.CDS": {
@@ -22,6 +22,15 @@
       "cbsDataSBA": "rs",
       "_methods": [
         "requestCBSServiceHint"
+      ]
+    },
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
       ]
     }
   },
@@ -73,26 +82,6 @@
         12,
         18,
         24
-      ]
-    },
-    {
-      "key": "factoryInterval",
-      "label": "BMW LongLife factory interval in car",
-      "type": "choice",
-      "default": "30000",
-      "options": [
-        [
-          "30000",
-          "30,000 km (EU LongLife)"
-        ],
-        [
-          "25000",
-          "25,000 km (US / Shorter)"
-        ],
-        [
-          "20000",
-          "20,000 km"
-        ]
       ]
     },
     {

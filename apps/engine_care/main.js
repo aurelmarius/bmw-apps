@@ -13,6 +13,8 @@ const mgu = require('./kit/mgu');
 const { withAlpha } = require('./kit/canvas');
 const G = require('./kit/gauges');
 const Car = require('./kit/car');
+const { Diag } = require('./kit/diag');
+const { DidReader } = require('./kit/dids');
 
 const W = 1600, H = 520;
 const GREEN = '#2fd27a';
@@ -22,6 +24,52 @@ const RED = '#ef2b2d';
 
 const KOMBI = 'de.bmw.infotainment.KombiInterface_2';
 const COLORS = { DEFAULT: 0, RED: 1, YELLOW: 2, GREEN: 3, ORANGE: 4 };
+
+const TICK_MS = 1000;                // runtime / distance are added up on this clock
+const MAX_GAP_S = 5;                 // a longer pause between ticks (unit asleep or stalled) isn't counted
+const RPM_ON = 600, RPM_OFF = 300;   // engine start / stop, with hysteresis
+const RPM_FRESH_MS = 5000;           // a running engine sends rpm all the time: older = not running
+const SPEED_FRESH_MS = 10000;
+const LIVE_MS = 60000;               // the car counts as there while it sent anything this recently
+const TRIP_GAP_MS = 15 * 60000;      // no data from the car this long: the next drive is a new trip
+const CONFIRM_MS = 5000;             // "Reset Oil Service" needs a second press within this
+// engine oil temperature from the engine unit (DME) when CDS sends none - as Car Vitals;
+// app.json config.dme overrides
+const DME = {
+    ecu: 0x12,
+    oil: [
+        { obd: '5C', bytes: 1, at: 0, factor: 1, offset: -40, min: -40, max: 170 },
+        { did: 'F45C', bytes: 1, at: 0, factor: 1, offset: -40, min: -40, max: 170 },
+    ],
+    // distance driven: OBD PID A6 odometer (0.1 km), else PID 31 distance since the fault memory
+    // was cleared (1 km; back to 0 after a clear - only its increases are used, see onOdo)
+    odo: [
+        { obd: 'A6', bytes: 4, at: 0, factor: 0.1, offset: 0, min: 1, max: 2000000 },
+        { did: 'F4A6', bytes: 4, at: 0, factor: 0.1, offset: 0, min: 1, max: 2000000 },
+        { obd: '31', bytes: 2, at: 0, factor: 1, offset: 0, min: 0, max: 65535 },
+        { did: 'F431', bytes: 2, at: 0, factor: 1, offset: 0, min: 0, max: 65535 },
+    ],
+};
+const OIL_WAIT_MS = 30000;           // no CDS oil temperature this long after the car answered: ask the DME
+const OIL_POLL_MS = 15000;
+const OIL_FRESH_MS = 60000;
+const ODO_POLL_MS = 60000;
+const ODO_MAX_STEP_KM = 2000;        // a bigger jump between two readings (another source, a cleared counter) re-anchors
+const KM_PER_MILE = 1.609344;
+
+/**
+ * A CBS distance as the cluster formats it ("12.300 km", "12 300 km", "7,600 mi", "-1.200 km" when
+ * overdue) -> signed km, or null. Takes the raw text: txt() would drop a Unicode minus.
+ */
+function parseDistance(s) {
+    s = String(s === undefined || s === null ? '' : s);
+    const m = /([-−–]?)\s*(\d[\d.,\s'  ]*)/.exec(s);
+    if (!m) return null;
+    const n = parseInt(m[2].replace(/\D/g, ''), 10);
+    if (isNaN(n)) return null;
+    const km = /\bmi\b|miles|meilen/i.test(s) ? n * KM_PER_MILE : n;
+    return Math.round(m[1] ? -km : km);
+}
 
 function find(v, key, str) {
     if (!v || typeof v !== 'object') return null;
@@ -36,14 +84,26 @@ mgu.run({
     async start(ctx) {
         const { ui, settings, dataDir, signals, log } = ctx;
         const car = new Car(ctx, ['rpm', 'speed', 'temps', 'torque']);
+        const dme = Object.assign({}, DME, (ctx.spec.config && ctx.spec.config.dme) || {});
 
         const saveFile = path.join(dataDir, 'engine_care_state.json');
 
         // Initial default state - starts fresh on install
-        let state = {
+        const freshTrip = () => ({
+            start: Date.now(),
+            iceSec: 0,
+            evSec: 0,
+            iceMeters: 0,
+            evMeters: 0,
+            coldStarts: 0,
+            coldHardStarts: 0,
+        });
+        const freshState = () => ({
             service: {
                 resetDate: Date.now(),
-                resetCbsKm: null,
+                odoKm: 0,           // distance from the engine unit since the reset (see onOdo)
+                odoBaseKm: 0,       // estimated from speed before the first distance reading
+                odoLast: null,      // { src, km }: the last reading, kept across resets
                 iceSec: 0,
                 evSec: 0,
                 iceMeters: 0,
@@ -52,39 +112,73 @@ mgu.run({
                 coldHardStarts: 0,
                 thermalStressSec: 0,
             },
-            trip: {
-                iceSec: 0,
-                evSec: 0,
-                iceMeters: 0,
-                evMeters: 0,
-                coldStarts: 0,
-                coldHardStarts: 0,
-            },
+            trip: freshTrip(),
             history: [],
-        };
+            lastLive: 0,        // when the car last sent data: a long gap starts a new trip
+        });
 
-        // Cluster CBS state read directly from BMW instrument cluster
+        /** The saved state, else its backup (a write cut off by the unit shutting down), else a fresh one. */
+        function loadState() {
+            for (const f of [saveFile, saveFile + '.bak']) {
+                try {
+                    if (!fs.existsSync(f)) continue;
+                    const loaded = JSON.parse(fs.readFileSync(f, 'utf8'));
+                    if (!loaded || !loaded.service) continue;
+                    const s = freshState();
+                    Object.assign(s.service, loaded.service);
+                    Object.assign(s.trip, loaded.trip || {});
+                    s.history = Array.isArray(loaded.history) ? loaded.history : [];
+                    s.lastLive = loaded.lastLive || 0;
+                    delete s.service.resetCbsKm;         // up to 1.3: km taken from the CBS countdown
+                    if (f !== saveFile) log.warn('engine_care state restored from the backup');
+                    return s;
+                } catch (e) {
+                    log.warn('Could not load ' + path.basename(f) + ': ' + e.message);
+                }
+            }
+            return freshState();
+        }
+        let state = loadState();
+
+        /**
+         * Atomic save: the new state goes to a temporary file (flushed to disk), the previous one
+         * becomes the backup, then the new one takes its name. The unit can lose power at any moment;
+         * at worst the backup is one save old.
+         */
+        let dirty = false, lastSave = 0;
+        function saveState() {
+            const tmp = saveFile + '.tmp';
+            try {
+                const fd = fs.openSync(tmp, 'w');
+                try { fs.writeSync(fd, JSON.stringify(state)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+                if (fs.existsSync(saveFile)) fs.renameSync(saveFile, saveFile + '.bak');
+                fs.renameSync(tmp, saveFile);
+                dirty = false; lastSave = Date.now();
+            } catch (e) {
+                log.warn('Could not save engine_care state: ' + e.message);
+            }
+        }
+        process.on('exit', () => { if (dirty) saveState(); });
+
+        /* ---------- BMW CBS (instrument cluster) ----------
+         * Shown as the car says it, never used as a distance: BMW's oil countdown is condition based
+         * (fuel burnt, cold starts, driving style) and doesn't go down 1 km per km driven. */
         let cbsOil = {
             available: false,
+            fromList: false,        // the service list had an oil item (the summary is only a fallback)
             name: 'Engine oil',
             way: '',
+            km: null,               // signed km left (< 0 = overdue), null = no distance
             date: '',
             color: GREEN,
         };
-
-        function updateCbsBaseline(wayStr) {
-            const km = parseKm(wayStr);
-            if (km === null) return;
-            const factoryInterval = Number(settings.get('factoryInterval') || 30000);
-            if (state.service.resetCbsKm === null) {
-                state.service.resetCbsKm = Math.max(km, factoryInterval);
-                saveState();
-            } else if (km > state.service.resetCbsKm) {
-                // BMW cluster CBS was reset in the vehicle
-                state.service.resetCbsKm = km;
-                state.service.resetDate = Date.now();
-                saveState();
-            }
+        function setCbs(way, date, col) {
+            cbsOil.available = true;
+            cbsOil.way = txt(way);
+            cbsOil.km = parseDistance(way);
+            cbsOil.date = txt(date);
+            const c = colour(col);
+            cbsOil.color = c === 1 || (cbsOil.km !== null && cbsOil.km < 0) ? RED : (c === 2 || c === 4) ? YELLOW : GREEN;
         }
 
         if (signals && typeof signals.watch === 'function') {
@@ -94,145 +188,238 @@ mgu.run({
                     for (const e of arr) {
                         const s = find(e, 'cBSIdentifier') || {};
                         if (s.cBSIdentifier === 1) { // 1 = Engine oil
-                            cbsOil.available = true;
+                            cbsOil.fromList = true;
                             cbsOil.name = txt(s.cBSServcieName || s.cBSServiceName) || 'Engine oil';
-                            cbsOil.way = txt(s.cBSServiceWay);
-                            cbsOil.date = txt(s.cBSServiceDate);
-                            const col = colour(s.cBSColor);
-                            cbsOil.color = col === 1 ? RED : (col === 2 || col === 4) ? YELLOW : GREEN;
-                            if (log) log.info(`[Engine Care] CBS Oil from cluster: ${cbsOil.way}, date: ${cbsOil.date}`);
-                            updateCbsBaseline(cbsOil.way);
+                            setCbs(s.cBSServiceWay, s.cBSServiceDate, s.cBSColor);
+                            log.info(`CBS oil from the cluster: ${JSON.stringify(s.cBSServiceWay)} -> ${cbsOil.km} km, date: ${cbsOil.date}`);
                             break;
                         }
                     }
                 },
                 cbsDataSBA: (v) => {
-                    if (v) {
-                        const s = find(v, 'cBSDataSBAText') || v;
-                        const sbaText = txt(s.cBSDataSBAText);
-                        if (/oil|motor/i.test(sbaText)) {
-                            cbsOil.available = true;
-                            cbsOil.way = txt(s.cBSDataSBADistance) || cbsOil.way;
-                            cbsOil.date = txt(s.cBSDataSBADate) || cbsOil.date;
-                            const col = colour(s.cBSDataSBAColor);
-                            cbsOil.color = col === 1 ? RED : (col === 2 || col === 4) ? YELLOW : GREEN;
-                            updateCbsBaseline(cbsOil.way);
-                        }
-                    }
+                    if (!v || cbsOil.fromList) return;
+                    const s = find(v, 'cBSDataSBAText') || v;
+                    // the next service, in the car's language ("Engine oil", "Motoroel", "Ulei de motor")
+                    if (/oil|motor|oel/i.test(txt(s.cBSDataSBAText))) setCbs(s.cBSDataSBADistance, s.cBSDataSBADate, s.cBSDataSBAColor);
                 },
-            }, log);
+            }, log, { pollMs: 60000 });             // some clusters don't notify these: read them every minute
         }
 
-        // Load saved state
-        try {
-            if (fs.existsSync(saveFile)) {
-                const loaded = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
-                if (loaded && loaded.service) {
-                    state = loaded;
-                    if (state.service.resetCbsKm === undefined) {
-                        state.service.resetCbsKm = null;
-                    }
+        /* ---------- Engine oil temperature ----------
+         * From CDS (statusEngineTemperature); some cars send none there (invalid 255), then from the
+         * engine unit (OBD PID 5C / DID F45C over the diagnostic link, as Car Vitals does). */
+        let rd = null, dmeQueue = Promise.resolve(), firstLive = 0;
+        /** One request to the engine unit at a time, over one diagnostic link: { v, src } (v null = no answer). */
+        function dmeRead(name, list) {
+            const run = async () => {
+                if (!rd) {
+                    const link = new Diag(signals, log);
+                    link.quiet = true;
+                    await link.init();
+                    rd = new DidReader(link, { ecu: dme.ecu });
                 }
-            }
-        } catch (e) {
-            ctx.log.warn('Could not load engine_care state:', e.message);
+                const v = await rd.value(name, list);
+                return { v, src: v === null ? null : DidReader.label(list[rd.pick[name] || 0]) };
+            };
+            const p = dmeQueue.then(run, run);
+            dmeQueue = p.catch(() => {});
+            return p;
         }
 
-        let saveTimer = 0;
-        function saveState() {
-            try {
-                fs.writeFileSync(saveFile, JSON.stringify(state, null, 2));
-            } catch (e) {
-                ctx.log.warn('Could not save engine_care state:', e.message);
-            }
+        let dmeOil = null;               // { value, t }
+        let oilBusy = false, oilAskT = 0;
+        const cdsOil = () => (G.isNum(car.live.oil) ? car.live.oil : null);
+        function pollDmeOil() {
+            const now = Date.now();
+            if (oilBusy || now - oilAskT < OIL_POLL_MS || cdsOil() !== null) return;
+            if (!firstLive || now - firstLive < OIL_WAIT_MS || now - car.lastCar > LIVE_MS) return;
+            if (!oilAskT) log.info('no oil temperature from CDS: reading it from the engine unit');
+            oilAskT = now; oilBusy = true;
+            dmeRead('oil', dme.oil).then(({ v }) => { if (v !== null) dmeOil = { value: v, t: Date.now() }; })
+                .catch((e) => log.warn('DME oil: ' + e)).then(() => { oilBusy = false; });
         }
 
-        /* ---------- Telemetry Tracking ---------- */
-        let prevRpm = 0;
-        let lastT = 0;
+        /* ---------- Distance driven ----------
+         * From the engine unit's distance counter (OBD A6 odometer, or PID 31), read once a minute; only
+         * its increases are added up, so a counter that restarts or a change of source loses nothing
+         * already counted. Before the first reading (and when the unit never answers) the distance is
+         * estimated from the speed. */
+        let odoBusy = false, odoAskT = 0, odoFails = 0;
+        function pollOdo() {
+            const now = Date.now();
+            if (odoBusy || now - odoAskT < ODO_POLL_MS * Math.min(10, 1 + odoFails)) return;
+            if (!firstLive || now - car.lastCar > LIVE_MS) return;
+            odoAskT = now; odoBusy = true;
+            dmeRead('odo', dme.odo).then(({ v, src }) => {
+                if (v === null) { if (++odoFails === 3) log.warn('no distance from the engine unit: estimating it from the speed'); return; }
+                odoFails = 0;
+                onOdo(src, v);
+            }).catch((e) => log.warn('DME distance: ' + e)).then(() => { odoBusy = false; });
+        }
+        function onOdo(src, km) {
+            const s = state.service, last = s.odoLast;
+            if (!last) {
+                s.odoBaseKm = (s.iceMeters + s.evMeters) / 1000;
+                log.info(`distance from the engine unit (${src}): ${km} km, ${s.odoBaseKm.toFixed(1)} km estimated before it`);
+            } else if (last.src === src && km >= last.km && km - last.km <= ODO_MAX_STEP_KM) {
+                s.odoKm += km - last.km;
+            } else {
+                log.info(`distance counter re-anchored: ${last.src} ${last.km} -> ${src} ${km}`);
+            }
+            s.odoLast = { src, km };
+            dirty = true;
+        }
+        /** Distance since the oil reset: { km, src: 'odometer' | 'speed' }. */
+        function drivenKm() {
+            const s = state.service;
+            if (s.odoLast) return { km: s.odoBaseKm + s.odoKm, src: 'odometer' };
+            return { km: (s.iceMeters + s.evMeters) / 1000, src: 'speed' };
+        }
+        /**
+         * { oil, cold, src }: oil = engine oil temperature or null; cold = the temperature the cold
+         * checks use - the oil's, else the coolant's (the oil lags it, so a cold coolant means cold oil;
+         * a warm coolant doesn't prove warm oil), else null (not known: nothing is counted as cold).
+         */
+        function temps() {
+            const c = cdsOil();
+            if (c !== null) return { oil: c, cold: c, src: 'oil' };
+            if (dmeOil && Date.now() - dmeOil.t < OIL_FRESH_MS) return { oil: dmeOil.value, cold: dmeOil.value, src: 'oil (DME)' };
+            const k = G.isNum(car.live.coolant) ? car.live.coolant : null;
+            return { oil: null, cold: k, src: k === null ? null : 'coolant' };
+        }
+
+        /* ---------- Telemetry Tracking ----------
+         * Runtime and distance are added up on a fixed 1 s clock from the last values the car sent.
+         * The signals are only sent when they change: adding up per signal sample lost the time between
+         * samples (EV gliding at a steady speed, the engine standing still at 0 rpm). */
+        let engineOn = null;             // null = not known yet (no rpm, or just back from demo data)
         let coldStartActive = false;
         let alertMessage = null;
         let alertUntil = 0;
+        let resetArmed = 0;
         let activeTab = 0; // 0 = Lifetime CBS, 1 = Trip Telemetry
 
-        car.onSample((d, t) => {
-            const dt = lastT ? Math.min(1.0, (t - lastT) / 1000) : 0.05;
-            lastT = t;
+        /** Engine running: true / false, null = no rpm from the car yet. Old rpm = not running (asleep). */
+        function readEngine() {
+            const rpm = car.live.rpm;
+            if (!G.isNum(rpm)) return null;
+            const fresh = car.age('rpm') < RPM_FRESH_MS;
+            return engineOn === true ? fresh && rpm >= RPM_OFF : fresh && rpm > RPM_ON;
+        }
+        /** km/h, or null: a speed gone quiet after standing still is still 0, after driving it's not known. */
+        function readSpeed() {
+            const v = car.live.speed;
+            if (!G.isNum(v)) return null;
+            if (car.age('speed') < SPEED_FRESH_MS) return v;
+            return v < 3 ? 0 : null;
+        }
 
-            const rpm = d.rpm || 0;
-            const speed = d.speed || 0;
-            const oil = d.oil || 20;
-            const torque = d.torque || 0;
-            const coldThreshold = settings.get('coldThreshold') || 65;
-            const hardTorque = settings.get('hardTorque') || 150;
+        function resetTrip() {
+            log.info('new trip (no data from the car for ' + Math.round((Date.now() - state.lastLive) / 60000) + ' min)');
+            state.trip = freshTrip();
+            dirty = true;
+        }
 
-            const isIceRunning = rpm > 400;
+        let lastTick = Date.now();
+        function tick() {
+            const now = Date.now();
+            let dt = (now - lastTick) / 1000;
+            lastTick = now;
+            if (dt > MAX_GAP_S) dt = 0;          // the unit slept or stalled: that time isn't known
 
-            // Detect engine start transition
-            if (prevRpm <= 400 && isIceRunning) {
-                if (oil < coldThreshold) {
-                    state.service.coldStarts++;
-                    state.trip.coldStarts++;
-                    coldStartActive = true;
-                }
+            // demo data is shown, never counted; afterwards the first engine state is a baseline, not a start
+            if (car.data().demo) { engineOn = null; coldStartActive = false; return; }
+            if (!car.lastCar) return;            // nothing from the car yet
+            if (now - car.lastCar < LIVE_MS) {
+                if (state.lastLive && now - state.lastLive > TRIP_GAP_MS) resetTrip();
+                state.lastLive = now;
+                if (!firstLive) firstLive = now;
             }
 
-            // Check for Cold Hard Start Abuse (high torque or high RPM while engine oil is cold)
-            if (isIceRunning && oil < coldThreshold && coldStartActive) {
-                if (torque > hardTorque || rpm > 3200) {
-                    state.service.coldHardStarts++;
-                    state.trip.coldHardStarts++;
+            const on = readEngine(), v = readSpeed(), tp = temps();
+            const coldThreshold = Number(settings.get('coldThreshold') || 65);
+            const hardTorque = Number(settings.get('hardTorque') || 150);
+
+            // Detect engine start transition (from a known "off" only: an engine already running when the app starts isn't a start)
+            if (on !== null) {
+                if (engineOn === false && on) {
+                    if (!G.isNum(tp.cold)) {
+                        log.info('engine start, temperature not known: not counted');
+                    } else if (tp.cold < coldThreshold) {
+                        state.service.coldStarts++;
+                        state.trip.coldStarts++;
+                        coldStartActive = true;
+                        dirty = true;
+                    }
+                }
+                engineOn = on;
+            }
+            if (!engineOn) coldStartActive = false;
+
+            // Check for Cold Hard Start Abuse (high torque or high RPM while the engine is still cold)
+            if (engineOn && coldStartActive) {
+                if (!G.isNum(tp.cold) || tp.cold >= coldThreshold) {
                     coldStartActive = false;
-                    alertMessage = 'COLD HARD START! High torque under 65°C';
-                    alertUntil = Date.now() + 8000;
+                } else {
+                    const torque = car.age('torque') < RPM_FRESH_MS ? car.live.torque : null;
+                    if ((G.isNum(torque) && torque > hardTorque) || car.live.rpm > 3200) {
+                        state.service.coldHardStarts++;
+                        state.trip.coldHardStarts++;
+                        coldStartActive = false;
+                        dirty = true;
+                        alertMessage = `COLD HARD START! High load below ${coldThreshold}°C`;
+                        alertUntil = now + 8000;
+                    }
                 }
-            }
-
-            if (oil >= coldThreshold) {
-                coldStartActive = false;
             }
 
             // Accumulate operating hours and distance
-            if (isIceRunning) {
-                state.service.iceSec += dt;
-                state.trip.iceSec += dt;
-                const m = (speed / 3.6) * dt;
-                state.service.iceMeters += m;
-                state.trip.iceMeters += m;
-            } else if (speed > 3) {
-                state.service.evSec += dt;
-                state.trip.evSec += dt;
-                const m = (speed / 3.6) * dt;
-                state.service.evMeters += m;
-                state.trip.evMeters += m;
+            if (dt > 0) {
+                const m = v !== null ? (v / 3.6) * dt : 0;
+                if (engineOn === true) {
+                    state.service.iceSec += dt;
+                    state.trip.iceSec += dt;
+                    state.service.iceMeters += m;
+                    state.trip.iceMeters += m;
+                    if (G.isNum(tp.oil) && tp.oil > 115) state.service.thermalStressSec += dt;
+                    dirty = true;
+                } else if (engineOn === false && v !== null && v > 3) {
+                    state.service.evSec += dt;
+                    state.trip.evSec += dt;
+                    state.service.evMeters += m;
+                    state.trip.evMeters += m;
+                    dirty = true;
+                }
             }
 
-            if (isIceRunning && oil > 115) {
-                state.service.thermalStressSec += dt;
-            }
-
-            prevRpm = rpm;
-
-            // Save periodically every 15s
-            if (Date.now() - saveTimer > 15000) {
-                saveTimer = Date.now();
-                saveState();
-            }
-        });
+            // Save every 15s while something changed
+            if (dirty && now - lastSave > 15000) saveState();
+            pollDmeOil();
+            pollOdo();
+        }
+        setInterval(tick, TICK_MS);
 
         /* ---------- Actions ---------- */
         ui.onClick('BTN_PAGE', () => {
             activeTab = (activeTab + 1) % 2;
+            resetArmed = 0;
             render();
         });
 
+        // first press arms the reset, a second one within 5 s does it
         ui.onClick('BTN_RESET', () => {
-            const currentCbsKm = parseKm(cbsOil.way);
-            const factoryInterval = Number(settings.get('factoryInterval') || 30000);
-
+            if (Date.now() - resetArmed > CONFIRM_MS) {
+                resetArmed = Date.now();
+                alertMessage = 'Press "Reset Oil Service" again to confirm (5 s)';
+                alertUntil = resetArmed + CONFIRM_MS;
+                render();
+                return;
+            }
+            resetArmed = 0;
             // Archive current service
             state.history.push({
                 date: new Date().toISOString().split('T')[0],
+                km: Math.round(drivenKm().km),
                 iceHours: Number((state.service.iceSec / 3600).toFixed(1)),
                 evHours: Number((state.service.evSec / 3600).toFixed(1)),
                 iceKm: Math.round(state.service.iceMeters / 1000),
@@ -240,9 +427,10 @@ mgu.run({
                 coldHardStarts: state.service.coldHardStarts,
             });
 
-            // Reset service counters & snapshot baseline
+            // Reset service counters (the last distance reading stays: the next one counts from it)
             state.service.resetDate = Date.now();
-            state.service.resetCbsKm = currentCbsKm !== null ? currentCbsKm : factoryInterval;
+            state.service.odoKm = 0;
+            state.service.odoBaseKm = 0;
             state.service.iceSec = 0;
             state.service.evSec = 0;
             state.service.iceMeters = 0;
@@ -265,34 +453,18 @@ mgu.run({
             return `${hrs}h ${mins < 10 ? '0' : ''}${mins}m`;
         }
 
-        function parseKm(wayStr) {
-            if (!wayStr) return null;
-            const clean = String(wayStr).replace(/[^\d]/g, '');
-            const n = parseInt(clean, 10);
-            return isNaN(n) ? null : n;
-        }
-
         function calculateOilHealth() {
             const maxH = Number(settings.get('maxHours') || 180);
             const targetKm = Number(settings.get('maxKm') || 10000);
             const targetMonths = Number(settings.get('maxMonths') || 12);
-            const factoryInterval = Number(settings.get('factoryInterval') || 30000);
 
             const iceH = state.service.iceSec / 3600;
             const iceKm = state.service.iceMeters / 1000;
 
-            // CBS Delta calculation:
-            // Measures how many km have elapsed since the baseline snapshot was taken
-            let cbsKmDriven = 0;
-            const cbsWayNum = parseKm(cbsOil.way);
-            if (cbsOil.available && cbsWayNum !== null) {
-                const baseline = state.service.resetCbsKm !== null ? state.service.resetCbsKm : factoryInterval;
-                cbsKmDriven = Math.max(0, baseline - cbsWayNum);
-            }
-
-            // Driven distance towards target:
-            // Uses cluster CBS odometer delta if available, otherwise telemetry distance
-            const effectiveDrivenKm = Math.max(iceKm, cbsKmDriven);
+            // Driven distance towards the km target: all km since the reset (the odometer, as a workshop
+            // counts an oil interval); the engine's own use is in the hours target
+            const driven = drivenKm();
+            const effectiveDrivenKm = Math.round(driven.km);
 
             // Elapsed calendar time
             const resetTime = state.service.resetDate || Date.now();
@@ -340,11 +512,10 @@ mgu.run({
                 iceH,
                 iceKm,
                 effectiveDrivenKm,
+                drivenSrc: driven.src,
                 targetKm,
                 targetMonths,
-                factoryInterval,
-                cbsKmDriven,
-                limitingFactor: kmRatio >= timeRatio ? 'km' : 'time',
+                limitingFactor: hoursRatio >= kmRatio && hoursRatio >= timeRatio ? 'hours' : kmRatio >= timeRatio ? 'km' : 'time',
             };
         }
 
@@ -397,18 +568,26 @@ mgu.run({
             // BMW Native CBS Box
             cv.roundRect(48, 355, 442, 85, 8, withAlpha(cbsOil.available ? cbsOil.color : t.dim, 0.12));
             cv.strokeRoundRect(48, 355, 442, 85, 8, 1.5, withAlpha(cbsOil.available ? cbsOil.color : t.dim, 0.4));
-            cv.text('BMW FACTORY CBS (LONG-LIFE 30,000 KM)', 64, 376, 17, t.dim, { font: 'bold', spacing: 1 });
+            cv.text('BMW CBS - INSTRUMENT CLUSTER', 64, 376, 17, t.dim, { font: 'bold', spacing: 1 });
             if (cbsOil.available && (cbsOil.way || cbsOil.date)) {
-                const wayStr = cbsOil.way ? `${cbsOil.way}` : '';
+                const wayStr = cbsOil.km !== null && cbsOil.km < 0 ? `OVERDUE ${(-cbsOil.km).toLocaleString()} km`
+                    : cbsOil.km !== null ? `${cbsOil.km.toLocaleString()} km` : cbsOil.way;
                 const dateStr = cbsOil.date ? `Due ${cbsOil.date}` : '';
                 const fullStr = [wayStr, dateStr].filter(Boolean).join('  ·  ');
                 cv.text(fullStr, 64, 406, 22, cbsOil.color, { font: 'bold' });
-                cv.text('Official car schedule (30k is too long - 10k recommended)', 64, 428, 15, t.warn);
+                // BMW's condition-based countdown next to this app's target
+                const diff = cbsOil.km !== null ? cbsOil.km - c.remKm : null;
+                const cmp = diff === null ? 'BMW gives a date only'
+                    : diff > 500 ? `BMW allows ${diff.toLocaleString()} km more than your target`
+                        : diff < -500 ? `BMW wants it ${(-diff).toLocaleString()} km sooner than your target`
+                            : 'BMW and your target agree';
+                cv.text(cmp, 64, 428, 15, diff !== null && diff < -500 ? RED : t.warn);
             } else {
-                cv.text('Reading cluster CBS telemetry...', 64, 406, 20, t.dim);
+                cv.text('Waiting for the instrument cluster...', 64, 406, 20, t.dim);
             }
 
-            cv.text(`Oil reset: ${c.daysSince}d ago (${c.effectiveDrivenKm.toLocaleString()} km driven)`, 48, 468, 17, t.dim);
+            const kmNote = c.drivenSrc === 'speed' ? ' km driven, est. from speed' : ' km driven';
+            cv.text(`Oil reset: ${c.daysSince}d ago (${c.effectiveDrivenKm.toLocaleString()}${kmNote})`, 48, 468, 17, t.dim);
             cv.text(`Target: ${c.targetKm.toLocaleString()} km / ${c.targetMonths} mo`, 48, 492, 17, t.dim);
             cv.text('Reset Oil Service', 480, 492, 18, t.accent, { align: 'right' });
 
@@ -440,7 +619,7 @@ mgu.run({
             // Distance Breakdown
             const iceKm = Math.round(state.service.iceMeters / 1000);
             const evKm = Math.round(state.service.evMeters / 1000);
-            const totalKm = iceKm + evKm;
+            const totalKm = Math.round(drivenKm().km);
 
             cv.fillRect(562, 255, barW, 1.5, withAlpha('#ffffff', 0.15));
 
@@ -450,7 +629,7 @@ mgu.run({
             cv.text('EV Km:', 820, 295, 22, t.dim);
             cv.text(`${evKm.toLocaleString()} km`, 562 + barW, 295, 24, BLUE, { font: 'bold', align: 'right' });
 
-            cv.text('Total Odometer:', 562, 345, 22, t.dim);
+            cv.text('Total since oil reset:', 562, 345, 22, t.dim);
             cv.text(`${totalKm.toLocaleString()} km`, 562 + barW, 345, 26, t.text, { font: 'bold', align: 'right' });
 
             // Savings badge note
@@ -479,13 +658,17 @@ mgu.run({
             cv.fillRect(1110, 215, 442, 1.5, withAlpha('#ffffff', 0.15));
 
             // Real-Time Engine Sensors
-            const isRunning = d.rpm > 400;
+            // live: the tracker's own view (fresh rpm, oil from CDS or the DME); demo: the simulated values
+            const isRunning = d.demo ? d.rpm > 400 : engineOn === true;
+            const oil = d.demo ? d.oil : temps().oil;
+            const oilSrc = d.demo ? 'oil' : temps().src;
             cv.text('ENGINE STATE:', 1110, 255, 22, t.dim);
-            cv.text(isRunning ? `RUNNING (${Math.round(d.rpm)} rpm)` : 'OFF (EV GLIDE)', 1552, 255, 22, isRunning ? t.text : GREEN, { font: 'bold', align: 'right' });
+            const stateText = isRunning ? `RUNNING (${Math.round(d.rpm)} rpm)` : engineOn === null && !d.demo ? 'WAITING FOR DATA' : 'OFF (EV GLIDE)';
+            cv.text(stateText, 1552, 255, 22, isRunning ? t.text : engineOn === null && !d.demo ? t.dim : GREEN, { font: 'bold', align: 'right' });
 
-            cv.text('ENGINE OIL TEMP:', 1110, 305, 22, t.dim);
-            const oilColor = G.isNum(d.oil) ? (d.oil >= 75 ? GREEN : d.oil >= 50 ? YELLOW : BLUE) : t.dim;
-            cv.text(G.isNum(d.oil) ? `${Math.round(d.oil)} °C` : '--', 1552, 305, 24, oilColor, { font: 'bold', align: 'right' });
+            cv.text(oilSrc === 'oil (DME)' ? 'ENGINE OIL TEMP (DME):' : 'ENGINE OIL TEMP:', 1110, 305, 22, t.dim);
+            const oilColor = G.isNum(oil) ? (oil >= 75 ? GREEN : oil >= 50 ? YELLOW : BLUE) : t.dim;
+            cv.text(G.isNum(oil) ? `${Math.round(oil)} °C` : oilSrc === 'coolant' ? 'n/a (using coolant)' : '--', 1552, 305, 24, oilColor, { font: 'bold', align: 'right' });
 
             cv.text('COOLANT TEMP:', 1110, 355, 22, t.dim);
             const coolColor = G.isNum(d.coolant) ? (d.coolant >= 80 ? GREEN : YELLOW) : t.dim;
@@ -495,8 +678,9 @@ mgu.run({
             cv.text(G.isNum(d.torque) ? `${Math.round(d.torque)} Nm` : '--', 1552, 405, 24, t.text, { font: 'bold', align: 'right' });
 
             // Thermal status message
-            const warmMsg = G.isNum(d.oil) && d.oil >= 75 ? 'Engine oil at operating temp (OK)' : 'Engine warming up (keep load < 150 Nm)';
-            cv.text(warmMsg, 1110, 480, 20, G.isNum(d.oil) && d.oil >= 75 ? GREEN : YELLOW);
+            const warm = G.isNum(oil) && oil >= 75;
+            const warmMsg = warm ? 'Engine oil at operating temp (OK)' : `Engine warming up (keep load < ${Number(settings.get('hardTorque') || 150)} Nm)`;
+            cv.text(warmMsg, 1110, 480, 20, warm ? GREEN : YELLOW);
         }
 
         function renderTripTab(cv, t, d) {
