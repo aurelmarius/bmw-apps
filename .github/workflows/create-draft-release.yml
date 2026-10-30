@@ -58,10 +58,10 @@ jobs:
           # Check if release already exists
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists. Uploading assets to existing release..."
-            gh release upload "$TAG" packages/*.tgz mgu-store.json --clobber
+            gh release upload "$TAG" packages/*.tgz mgu-store.json *.png --clobber
           else
             echo "Creating fresh Draft Release $TAG..."
-            gh release create "$TAG" packages/*.tgz mgu-store.json \
+            gh release create "$TAG" packages/*.tgz mgu-store.json *.png \
               --draft \
               --title "$TITLE" \
               --notes-file release_notes.md

@@ -20,24 +20,37 @@ const BLUE = '#2a8cff';
 const YELLOW = '#ffb020';
 const RED = '#ef2b2d';
 
+const KOMBI = 'de.bmw.infotainment.KombiInterface_2';
+const COLORS = { DEFAULT: 0, RED: 1, YELLOW: 2, GREEN: 3, ORANGE: 4 };
+
+function find(v, key, str) {
+    if (!v || typeof v !== 'object') return null;
+    if (key in v && (!str || typeof v[key] === 'string')) return v;
+    for (const k of Object.keys(v)) { const r = find(v[k], key, str); if (r) return r; }
+    return null;
+}
+const colour = (c) => (typeof c === 'number' ? c : COLORS[String(c)] !== undefined ? COLORS[String(c)] : 0);
+const txt = (s) => String(s === undefined || s === null ? '' : s).replace(/[^\x20-\x7e]/g, (ch) => ({ 'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue', 'ß': 'ss' }[ch] || '')).trim();
+
 mgu.run({
     async start(ctx) {
-        const { ui, settings, dataDir } = ctx;
+        const { ui, settings, dataDir, signals, log } = ctx;
         const car = new Car(ctx, ['rpm', 'speed', 'temps', 'torque']);
 
         const saveFile = path.join(dataDir, 'engine_care_state.json');
 
-        // Initial default state with realistic baseline for BMW 330e
+        // Initial default state - starts fresh on install
         let state = {
             service: {
-                resetDate: Date.now() - 42 * 86400 * 1000, // 42 days ago
-                iceSec: 32.5 * 3600, // 32.5 engine hours
-                evSec: 74.2 * 3600,  // 74.2 EV driving hours
-                iceMeters: 2140 * 1000, // 2,140 km on petrol engine
-                evMeters: 4560 * 1000,  // 4,560 km in pure electric mode
-                coldStarts: 24,
-                coldHardStarts: 3,
-                thermalStressSec: 180,
+                resetDate: Date.now(),
+                resetCbsKm: null,
+                iceSec: 0,
+                evSec: 0,
+                iceMeters: 0,
+                evMeters: 0,
+                coldStarts: 0,
+                coldHardStarts: 0,
+                thermalStressSec: 0,
             },
             trip: {
                 iceSec: 0,
@@ -50,11 +63,76 @@ mgu.run({
             history: [],
         };
 
+        // Cluster CBS state read directly from BMW instrument cluster
+        let cbsOil = {
+            available: false,
+            name: 'Engine oil',
+            way: '',
+            date: '',
+            color: GREEN,
+        };
+
+        function updateCbsBaseline(wayStr) {
+            const km = parseKm(wayStr);
+            if (km === null) return;
+            const factoryInterval = Number(settings.get('factoryInterval') || 30000);
+            if (state.service.resetCbsKm === null) {
+                state.service.resetCbsKm = Math.max(km, factoryInterval);
+                saveState();
+            } else if (km > state.service.resetCbsKm) {
+                // BMW cluster CBS was reset in the vehicle
+                state.service.resetCbsKm = km;
+                state.service.resetDate = Date.now();
+                saveState();
+            }
+        }
+
+        if (signals && typeof signals.watch === 'function') {
+            signals.watch(KOMBI, '1', {
+                cbsDataServiceList: (v) => {
+                    const arr = Array.isArray(v) ? v : (v && (v.cbsDataServiceList || v.value)) || [];
+                    for (const e of arr) {
+                        const s = find(e, 'cBSIdentifier') || {};
+                        if (s.cBSIdentifier === 1) { // 1 = Engine oil
+                            cbsOil.available = true;
+                            cbsOil.name = txt(s.cBSServcieName || s.cBSServiceName) || 'Engine oil';
+                            cbsOil.way = txt(s.cBSServiceWay);
+                            cbsOil.date = txt(s.cBSServiceDate);
+                            const col = colour(s.cBSColor);
+                            cbsOil.color = col === 1 ? RED : (col === 2 || col === 4) ? YELLOW : GREEN;
+                            if (log) log.info(`[Engine Care] CBS Oil from cluster: ${cbsOil.way}, date: ${cbsOil.date}`);
+                            updateCbsBaseline(cbsOil.way);
+                            break;
+                        }
+                    }
+                },
+                cbsDataSBA: (v) => {
+                    if (v) {
+                        const s = find(v, 'cBSDataSBAText') || v;
+                        const sbaText = txt(s.cBSDataSBAText);
+                        if (/oil|motor/i.test(sbaText)) {
+                            cbsOil.available = true;
+                            cbsOil.way = txt(s.cBSDataSBADistance) || cbsOil.way;
+                            cbsOil.date = txt(s.cBSDataSBADate) || cbsOil.date;
+                            const col = colour(s.cBSDataSBAColor);
+                            cbsOil.color = col === 1 ? RED : (col === 2 || col === 4) ? YELLOW : GREEN;
+                            updateCbsBaseline(cbsOil.way);
+                        }
+                    }
+                },
+            }, log);
+        }
+
         // Load saved state
         try {
             if (fs.existsSync(saveFile)) {
                 const loaded = JSON.parse(fs.readFileSync(saveFile, 'utf8'));
-                if (loaded && loaded.service) state = loaded;
+                if (loaded && loaded.service) {
+                    state = loaded;
+                    if (state.service.resetCbsKm === undefined) {
+                        state.service.resetCbsKm = null;
+                    }
+                }
             }
         } catch (e) {
             ctx.log.warn('Could not load engine_care state:', e.message);
@@ -149,6 +227,9 @@ mgu.run({
         });
 
         ui.onClick('BTN_RESET', () => {
+            const currentCbsKm = parseKm(cbsOil.way);
+            const factoryInterval = Number(settings.get('factoryInterval') || 30000);
+
             // Archive current service
             state.history.push({
                 date: new Date().toISOString().split('T')[0],
@@ -159,8 +240,9 @@ mgu.run({
                 coldHardStarts: state.service.coldHardStarts,
             });
 
-            // Reset service counters
+            // Reset service counters & snapshot baseline
             state.service.resetDate = Date.now();
+            state.service.resetCbsKm = currentCbsKm !== null ? currentCbsKm : factoryInterval;
             state.service.iceSec = 0;
             state.service.evSec = 0;
             state.service.iceMeters = 0;
@@ -183,36 +265,87 @@ mgu.run({
             return `${hrs}h ${mins < 10 ? '0' : ''}${mins}m`;
         }
 
+        function parseKm(wayStr) {
+            if (!wayStr) return null;
+            const clean = String(wayStr).replace(/[^\d]/g, '');
+            const n = parseInt(clean, 10);
+            return isNaN(n) ? null : n;
+        }
+
         function calculateOilHealth() {
-            const maxH = settings.get('maxHours') || 180;
-            const maxK = settings.get('maxKm') || 10000;
+            const maxH = Number(settings.get('maxHours') || 180);
+            const targetKm = Number(settings.get('maxKm') || 10000);
+            const targetMonths = Number(settings.get('maxMonths') || 12);
+            const factoryInterval = Number(settings.get('factoryInterval') || 30000);
 
             const iceH = state.service.iceSec / 3600;
             const iceKm = state.service.iceMeters / 1000;
 
-            const hoursRatio = iceH / maxH;
-            const kmRatio = iceKm / maxK;
-            // Penalties: each cold hard start is equivalent to 2.5 hours of highway wear
-            const coldPenalty = (state.service.coldHardStarts * 2.5) / maxH;
-            const thermalPenalty = (state.service.thermalStressSec / 3600 * 2) / maxH;
+            // CBS Delta calculation:
+            // Measures how many km have elapsed since the baseline snapshot was taken
+            let cbsKmDriven = 0;
+            const cbsWayNum = parseKm(cbsOil.way);
+            if (cbsOil.available && cbsWayNum !== null) {
+                const baseline = state.service.resetCbsKm !== null ? state.service.resetCbsKm : factoryInterval;
+                cbsKmDriven = Math.max(0, baseline - cbsWayNum);
+            }
 
-            const totalWear = Math.max(hoursRatio, kmRatio) + coldPenalty + thermalPenalty;
+            // Driven distance towards target:
+            // Uses cluster CBS odometer delta if available, otherwise telemetry distance
+            const effectiveDrivenKm = Math.max(iceKm, cbsKmDriven);
+
+            // Elapsed calendar time
+            const resetTime = state.service.resetDate || Date.now();
+            const daysSince = Math.max(0, Math.floor((Date.now() - resetTime) / 86400000));
+            const monthsSince = daysSince / 30.4375;
+
+            // Wear factors based on "whichever comes first"
+            const kmRatio = effectiveDrivenKm / targetKm;
+            const timeRatio = monthsSince / targetMonths;
+            const hoursRatio = iceH / maxH;
+
+            // Cold hard start abuse & thermal stress penalties
+            const coldPenalty = (state.service.coldHardStarts * 2.5) / maxH;
+            const thermalPenalty = ((state.service.thermalStressSec / 3600) * 2) / maxH;
+
+            const baseWear = Math.max(kmRatio, timeRatio, hoursRatio);
+            const totalWear = Math.min(1.0, baseWear + coldPenalty + thermalPenalty);
             const lifePct = Math.max(0, Math.min(100, Math.round((1 - totalWear) * 100)));
 
-            const remHours = Math.max(0, Math.round(maxH * (lifePct / 100)));
-            const remKm = Math.max(0, Math.round(maxK * (lifePct / 100)));
+            const remKm = Math.max(0, Math.round(targetKm - effectiveDrivenKm));
+            const remDays = Math.max(0, Math.round((targetMonths * 30.4375) - daysSince));
+            const remMonths = Math.max(0, Number((targetMonths - monthsSince).toFixed(1)));
+            const remHours = Math.max(0, Math.round(maxH * Math.max(0, 1 - hoursRatio)));
 
             let status = 'HEALTHY';
             let color = GREEN;
-            if (lifePct <= 10) {
+            if (lifePct <= 10 || remKm <= 500 || remDays <= 15) {
                 status = 'SERVICE DUE';
                 color = RED;
-            } else if (lifePct <= 25) {
-                status = 'SERVICE SOON';
+            } else if (lifePct <= 25 || remKm <= 2000 || remDays <= 45) {
+                status = 'DUE SOON';
                 color = YELLOW;
             }
 
-            return { lifePct, remHours, remKm, status, color, iceH, iceKm };
+            return {
+                lifePct,
+                remKm,
+                remDays,
+                remMonths,
+                remHours,
+                daysSince,
+                monthsSince,
+                status,
+                color,
+                iceH,
+                iceKm,
+                effectiveDrivenKm,
+                targetKm,
+                targetMonths,
+                factoryInterval,
+                cbsKmDriven,
+                limitingFactor: kmRatio >= timeRatio ? 'km' : 'time',
+            };
         }
 
         /* ---------- Rendering ---------- */
@@ -240,8 +373,8 @@ mgu.run({
         }
 
         function renderLifetimeTab(cv, t, d, c) {
-            // Panel 1 (Left): True Oil Degradation Index
-            G.panel(cv, t, 24, 44, 490, 468, 'True Oil Health');
+            // Panel 1 (Left): Optimal Oil Care (10k km / 12 mo)
+            G.panel(cv, t, 24, 44, 490, 468, 'Recommended Oil Care');
 
             // Big Health Percentage
             cv.text(String(c.lifePct), 48, 175, 110, c.color, { font: 'num' });
@@ -249,23 +382,35 @@ mgu.run({
             cv.text(c.status, 480, 115, 24, c.color, { font: 'bold', align: 'right' });
 
             // Service status sublabels
-            cv.text('Remaining:', 48, 222, 22, t.dim);
-            cv.text(`${c.remHours} hrs  ·  ${c.remKm.toLocaleString()} ICE km`, 48, 252, 28, t.text, { font: 'bold' });
+            cv.text('Remaining to recommended change:', 48, 218, 18, t.dim);
+            cv.text(`${c.remKm.toLocaleString()} km  ·  ${c.remMonths} mo (${c.remDays}d)`, 48, 250, 24, c.remKm <= 1000 || c.remDays <= 30 ? RED : t.text, { font: 'bold' });
 
             // Degradation progress bar
-            G.bar(cv, t, 48, 276, 442, 70, {
-                label: 'Oil Degradation Life',
+            G.bar(cv, t, 48, 276, 442, 65, {
+                label: `Oil Life (${c.targetKm / 1000}k km / ${c.targetMonths} mo limit)`,
                 value: c.lifePct,
                 max: 100,
                 unit: '%',
                 color: c.lifePct > 25 ? 'accent' : c.lifePct > 10 ? 'warn' : 'crit',
             });
 
-            // Target limits and service age
-            const daysSince = Math.max(1, Math.round((Date.now() - state.service.resetDate) / 86400000));
-            cv.text(`Target: ${settings.get('maxHours')}h or ${settings.get('maxKm')} ICE km`, 48, 388, 20, t.dim);
-            cv.text(`Last reset: ${daysSince} days ago`, 48, 416, 20, t.dim);
-            cv.text('Press "Reset Oil Service" after oil change', 48, 480, 18, t.dim);
+            // BMW Native CBS Box
+            cv.roundRect(48, 355, 442, 85, 8, withAlpha(cbsOil.available ? cbsOil.color : t.dim, 0.12));
+            cv.strokeRoundRect(48, 355, 442, 85, 8, 1.5, withAlpha(cbsOil.available ? cbsOil.color : t.dim, 0.4));
+            cv.text('BMW FACTORY CBS (LONG-LIFE 30,000 KM)', 64, 376, 17, t.dim, { font: 'bold', spacing: 1 });
+            if (cbsOil.available && (cbsOil.way || cbsOil.date)) {
+                const wayStr = cbsOil.way ? `${cbsOil.way}` : '';
+                const dateStr = cbsOil.date ? `Due ${cbsOil.date}` : '';
+                const fullStr = [wayStr, dateStr].filter(Boolean).join('  ·  ');
+                cv.text(fullStr, 64, 406, 22, cbsOil.color, { font: 'bold' });
+                cv.text('Official car schedule (30k is too long - 10k recommended)', 64, 428, 15, t.warn);
+            } else {
+                cv.text('Reading cluster CBS telemetry...', 64, 406, 20, t.dim);
+            }
+
+            cv.text(`Oil reset: ${c.daysSince}d ago (${c.effectiveDrivenKm.toLocaleString()} km driven)`, 48, 468, 17, t.dim);
+            cv.text(`Target: ${c.targetKm.toLocaleString()} km / ${c.targetMonths} mo`, 48, 492, 17, t.dim);
+            cv.text('Reset Oil Service', 480, 492, 18, t.accent, { align: 'right' });
 
             // Panel 2 (Center): PHEV Runtime & Distance Split
             G.panel(cv, t, 538, 44, 524, 468, 'PHEV Runtime Split');

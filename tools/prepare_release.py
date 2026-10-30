@@ -55,6 +55,13 @@ def main():
                 'description': desc,
                 'author': author
             }
+
+            icon_name = f'{app_id}.png'
+            icon_path = os.path.join(ROOT, icon_name)
+            if os.path.exists(icon_path):
+                with open(icon_path, 'rb') as icf:
+                    apps_meta[app_id]['icon'] = icon_name
+                    apps_meta[app_id]['iconSha256'] = hashlib.sha256(icf.read()).hexdigest()
             components.append({
                 'id': app_id,
                 'kind': 'app',

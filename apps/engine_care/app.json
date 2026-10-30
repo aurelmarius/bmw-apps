@@ -2,7 +2,7 @@
   "id": "engine_care",
   "title": "Engine Care",
   "description": "PHEV B48 operating hours, EV vs ICE runtime split, cold hard-start counter and true oil degradation CBS monitor",
-  "version": "1.0.1",
+  "version": "1.3.0",
   "vendor": "custom",
   "loggingId": "OA9C",
   "iconGlyph": "engine",
@@ -16,6 +16,13 @@
     },
     "de.bmw.infotainment.drivingexcitement.FES": {
       "statusActualValueTorque2": "rs"
+    },
+    "de.bmw.infotainment.KombiInterface_2": {
+      "cbsDataServiceList": "rs",
+      "cbsDataSBA": "rs",
+      "_methods": [
+        "requestCBSServiceHint"
+      ]
     }
   },
   "screens": [
@@ -41,6 +48,54 @@
   ],
   "settings": [
     {
+      "key": "maxKm",
+      "label": "Optimal oil change interval target",
+      "type": "number",
+      "unit": "km",
+      "default": 10000,
+      "steps": [
+        6000,
+        8000,
+        10000,
+        12000,
+        15000
+      ]
+    },
+    {
+      "key": "maxMonths",
+      "label": "Max time for oil change",
+      "type": "number",
+      "unit": "mo",
+      "default": 12,
+      "steps": [
+        6,
+        9,
+        12,
+        18,
+        24
+      ]
+    },
+    {
+      "key": "factoryInterval",
+      "label": "BMW LongLife factory interval in car",
+      "type": "choice",
+      "default": "30000",
+      "options": [
+        [
+          "30000",
+          "30,000 km (EU LongLife)"
+        ],
+        [
+          "25000",
+          "25,000 km (US / Shorter)"
+        ],
+        [
+          "20000",
+          "20,000 km"
+        ]
+      ]
+    },
+    {
       "key": "maxHours",
       "label": "Max engine hours for oil change",
       "type": "number",
@@ -52,20 +107,6 @@
         180,
         200,
         250
-      ]
-    },
-    {
-      "key": "maxKm",
-      "label": "Max ICE km for oil change",
-      "type": "number",
-      "unit": "km",
-      "default": 10000,
-      "steps": [
-        6000,
-        8000,
-        10000,
-        12000,
-        15000
       ]
     },
     {
