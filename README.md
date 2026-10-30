@@ -62,15 +62,15 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 1. Download `engine_care@<version>.tgz` and `hybrid_cost@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.0.tgz hybrid_cost@1.0.2.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.1.tgz hybrid_cost@1.1.1.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
 ### Method 3: Manual Deployment via SSH
 Copy the package to the head unit and run `mgu-deploy.sh`:
 ```bash
-/var/opt/mgu-deploy/mgu-deploy.sh install --artifact engine_care@1.5.0.tgz --yes
-/var/opt/mgu-deploy/mgu-deploy.sh install --artifact hybrid_cost@1.0.2.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact engine_care@1.5.1.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact hybrid_cost@1.1.1.tgz --yes
 ```
 
 ---

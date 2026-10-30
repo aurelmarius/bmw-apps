@@ -2,7 +2,7 @@
   "id": "engine_care",
   "title": "Engine Care",
   "description": "PHEV B48 operating hours, EV vs ICE split, cold hard starts, engine runs that never warm the oil, battery charge at engine starts and true oil degradation next to BMW CBS",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "vendor": "custom",
   "loggingId": "OA9E",
   "iconGlyph": "engine",
