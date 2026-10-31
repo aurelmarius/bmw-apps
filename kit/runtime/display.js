@@ -75,6 +75,18 @@ const FULL = {
 };
 const LAYOUTS = ['full', 'standard'];
 
+/**
+ * The HMI's image component reaches 6 px into its button bar (y 596..602): those rows of a page drawn
+ * for it are left see-through, so the bar's edge line isn't cut off under the page.
+ */
+function underBar(softImage) {
+    const from = HMI.barTop - HMI.img.y;
+    return (name, cv) => {
+        if (cv instanceof Canvas && cv.w === HMI.img.w && cv.h === HMI.img.h) cv.d.fill(0, from * cv.w * 4);
+        return softImage(name, cv);
+    };
+}
+
 class Display {
     constructor(ui, log, spec, settings, themeFn) {
         this.ui = ui; this.log = log; this.spec = spec; this.settings = settings; this.theme = themeFn;
@@ -512,7 +524,8 @@ class Display {
         const scr = this.gpu.screen, v = this.layout();
         let pl;
         if (v === 'standard' || scr.w !== HMI.screen.w || scr.h !== HMI.screen.h) {
-            pl = { x: HMI.img.x, y: HMI.img.y, w: HMI.img.w, h: HMI.img.h, scale: 1, ox: 0, oy: 0, full: false };
+            // down to the top of the HMI's bar: its edge line stays in sight
+            pl = { x: HMI.img.x, y: HMI.img.y, w: HMI.img.w, h: HMI.barTop - HMI.img.y, scale: 1, ox: 0, oy: 0, full: false };
         } else {
             // the surface covers the whole screen, so the HMI's own bar can't show under the back
             // arrow column; the page content goes right of that column
@@ -609,6 +622,7 @@ class Display {
      * Returns a promise like ui.image.
      */
     present(name, r, softImage) {
+        softImage = underBar(softImage);
         if (!(r instanceof Recorder)) return softImage(name, r);
         if (r.chrome && r.chrome.tabs) this.tabInfo = r.chrome.tabs;
         else if (r.tabInfo) this.tabInfo = r.tabInfo;
