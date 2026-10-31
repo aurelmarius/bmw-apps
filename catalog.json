@@ -5,34 +5,34 @@
     {
       "id": "engine_care",
       "kind": "app",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "title": "Engine Care",
       "description": "PHEV B48 operating hours, EV vs ICE split, cold hard starts, engine runs that never warm the oil, battery charge at engine starts and true oil degradation next to BMW CBS",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "engine_care@1.5.1.tgz",
-        "size": 569943,
-        "sha256": "aa962f626ba977e983cfcdf63f04ebdf4c8780a2a7b1c912821cd526ca991351",
-        "url": "packages/engine_care@1.5.1.tgz"
+        "name": "engine_care@1.5.2.tgz",
+        "size": 570334,
+        "sha256": "c57644f3af3081373d611e13d80c1020038fef4004bf325682f2180fe0526c66",
+        "url": "packages/engine_care@1.5.2.tgz"
       },
       "uninstallable": true
     },
     {
       "id": "hybrid_cost",
       "kind": "app",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "title": "Hybrid Cost",
       "description": "PHEV running cost calculator: live electric vs petrol cost per 100 km in 11 currencies, dynamic torque split, trip savings and a price editor for fuel and electricity",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "hybrid_cost@1.1.1.tgz",
-        "size": 565647,
-        "sha256": "5f683f063c3cc48c7f210ae8f1bcdbdc8b5327dbe1bf699c3147d51a9733b310",
-        "url": "packages/hybrid_cost@1.1.1.tgz"
+        "name": "hybrid_cost@1.1.2.tgz",
+        "size": 566049,
+        "sha256": "30569341681fc2d6f1e094c67587a608ba8522b0ceb1ca24968b240488378469",
+        "url": "packages/hybrid_cost@1.1.2.tgz"
       },
       "uninstallable": true
     }
