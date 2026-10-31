@@ -149,6 +149,15 @@ class Display {
         });
     }
 
+    /** Which path draws the screen, in a few words (for an app's diagnostics page). */
+    status() {
+        if (!this.gpu) return this.poll ? 'HMI image: no renderer socket' : 'HMI image (setting Renderer)';
+        if (!this.gpu.ready) return 'renderer connecting';
+        if (this.blocked) return 'HMI image: renderer has another app in front';
+        const who = this.gpu.native ? 'mgu-render' : 'renderer ' + (this.gpu.path || '');
+        return who + ', ' + (this.place && this.place.full ? 'full screen' : 'standard layout');
+    }
+
     /** Start / stop the GPU path for the 'renderer' setting; wait for the socket if it isn't there yet. */
     _mode() {
         const want = (process.env.MGU_RENDERER || this.settings.get('renderer') || 'auto') !== 'software';

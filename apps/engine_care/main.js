@@ -630,6 +630,7 @@ mgu.run({
                     dg.countedSec >= 60 && dg.hiddenSec === 0 ? t.warn : t.text],
                 ['Torque with engine off', dg.torqueEvSec < 10 ? 'not seen yet' : `max ${Math.round(dg.torqueEvMax || 0)} Nm -> ${dg.torqueEvMax > EV_TORQUE_NM ? 'includes the e-motor' : 'engine only'}`,
                     dg.torqueEvSec >= 10 && dg.torqueEvMax > EV_TORQUE_NM ? t.warn : t.text],
+                ['Screen drawn by', ctx.display ? ctx.display.status() : 'HMI image', ctx.display && ctx.display.gpu && ctx.display.gpu.ready && !ctx.display.blocked ? t.text : t.warn],
             ];
             lines.forEach(([name, v, vc], i) => {
                 const y = 326 + i * 34;
