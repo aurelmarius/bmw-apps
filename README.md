@@ -18,7 +18,7 @@ BMW PHEV powertrains frequently start the combustion engine (ICE) directly while
 * **BMW CBS Side by Side**: Shows the instrument cluster's own oil service countdown (distance, date, overdue) next to your own target - for display only, as BMW's countdown is condition based and not a distance counter.
 * **Engine Runs That Never Warmed the Oil**: Counts cold starts that stop again before the oil reaches its warm temperature (default 90°C) - the short PHEV runs that leave fuel and water in the oil.
 * **Battery Charge at Engine Starts**: Splits engine starts into "the battery was at its reserve" and "it had charge left" (high-voltage battery charge read over UDS).
-* **True Oil Life Monitor**: Whichever comes first of km, months and engine hours, plus wear counted in engine hours for cold starts, cold hard starts, runs that never warmed the oil and hot oil.
+* **True Oil Life Monitor**: Whichever comes first of km, months and engine hours, where the engine hours include wear for cold starts, cold hard starts, runs that never warmed the oil and hot oil (so a hybrid that rarely runs its engine isn't charged twice for the same km).
 * **Configurable Thresholds**: Customizable service limits (120h–250h or 6,000–15,000 km), cold / warm temperatures, load threshold, battery reserve.
 * **Diagnostics Page** (setting): every signal with its age, the engine unit's raw UDS answers, the cluster's raw CBS data, whether the app counts with its screen closed and whether the torque signal includes the e-motor.
 * **Drive Recording** (setting): one line a second of what the app got from the car, to replay on a PC (see Development).

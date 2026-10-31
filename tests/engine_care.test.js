@@ -201,6 +201,20 @@ const tests = {
         h = M.oilHealth(st, CFG, T0 + 400 * 86400000);
         assert.strictEqual(h.lifePct, 0); assert.strictEqual(h.status, 'SERVICE DUE');
     },
+    'oil health: wear counts on the hours only, not on top of the km'() {
+        // a hybrid in town: 6,100 km but 45 h of engine, 96 cold starts, 4 cold hard ones, 23 short runs
+        const st = M.freshState(T0);
+        Object.assign(st.service, { odoLast: { src: 'OBD A6', km: 1 }, odoKm: 6100, iceSec: 45 * 3600,
+            coldStarts: 96, coldHardStarts: 4, shortCycles: 23 });
+        let h = M.oilHealth(st, CFG, T0);
+        assert.strictEqual(h.penaltyH, 57);
+        assert.strictEqual(h.lifePct, 39, '61 % from the km; (45 + 57) h = 57 % stays under it');
+        assert.strictEqual(h.limitingFactor, 'km'); assert.strictEqual(h.status, 'HEALTHY');
+        st.service.shortCycles = 53;                             // 30 h more: (45 + 87) h = 73 %
+        h = M.oilHealth(st, CFG, T0);
+        assert.strictEqual(h.lifePct, 27); assert.strictEqual(h.limitingFactor, 'hours');
+        assert.strictEqual(h.remHours, 48);
+    },
     'CBS distance texts'() {
         const cases = [['12.300 km', 12300], ['12 300 km', 12300], ['-1.200 km', -1200], ['−1 200 km', -1200],
             ['7,600 mi', 12231], ['10 000 km', 10000], ['', null], [undefined, null], ['--- km', null]];

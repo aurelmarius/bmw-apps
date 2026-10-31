@@ -303,8 +303,11 @@ function drivenKm(st) {
 }
 
 /**
- * Oil life: whichever of km (all km since the change), months and engine hours comes first, plus
- * wear counted in engine hours (cold starts, cold hard starts, short cycles, hot oil).
+ * Oil life: whichever of km (all km since the change), months and engine hours comes first. The wear
+ * (cold starts, cold hard starts, short cycles, hot oil) is counted in engine hours on top of the hours
+ * run, so it only brings the change forward once those hours overtake the km and the months: the
+ * targets are already shorter than BMW's, and a hybrid that runs its engine little shouldn't pay for
+ * the same driving twice (km plus wear).
  */
 function oilHealth(st, c, now) {
     const s = st.service;
@@ -317,11 +320,10 @@ function oilHealth(st, c, now) {
 
     const kmRatio = driven.km / targetKm;
     const timeRatio = monthsSince / targetMonths;
-    const hoursRatio = iceH / maxH;
     const penaltyH = s.coldStarts * COLD_START_H + s.coldHardStarts * HARD_START_H
         + s.shortCycles * c.shortCycleH + (s.thermalStressSec / 3600) * HOT_EXTRA;
-    const baseWear = Math.max(kmRatio, timeRatio, hoursRatio);
-    const totalWear = Math.min(1, baseWear + penaltyH / maxH);
+    const hoursRatio = (iceH + penaltyH) / maxH;
+    const totalWear = Math.min(1, Math.max(kmRatio, timeRatio, hoursRatio));
     const lifePct = Math.max(0, Math.min(100, Math.round((1 - totalWear) * 100)));
 
     const remKm = Math.max(0, Math.round(targetKm - driven.km));
