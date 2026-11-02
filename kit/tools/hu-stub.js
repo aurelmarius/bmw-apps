@@ -85,6 +85,7 @@ function headUnit(stage, o) {
         onTab(fn) { display.onTab = fn; },
         // as kit/mgu.js: the kit's own screen (tabs, page buttons, sheets, scrolling) where the renderer has the app
         onTap(fn) { display.onTap = fn; },
+        onSwipe(fn) { display.onSwipe = fn; },
         sheet: (sh) => display.openSheet(sh),
         hideButton(id) { display.hideButton(id); },
         onScroll(fn) { display.onScroll = fn; },

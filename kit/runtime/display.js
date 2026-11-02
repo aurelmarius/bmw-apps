@@ -46,6 +46,7 @@ const { drawCredit } = require('./credits');
 // FrontCCU deflection: short / long push per direction (DREHGEBER enums as numbers)
 const TILT = { 1: 'N', 2: 'N', 4: 'E', 5: 'E', 7: 'S', 8: 'S', 10: 'W', 11: 'W' };
 const PAGE = { w: 1600, h: 520 };
+const SWIPE_PX = 60;                          // a finger moved this far on the page (logical px) is a swipe, not a tap
 // bar buttons that only turn pages (Next page, Previous page)
 const PAGER = ['BTN_PAGE', 'BTN_PREV'];
 // px between the header (and the screen's bottom) and a page with no bar under it
@@ -203,7 +204,15 @@ class Display {
                 this._lost();                       // (shows the HMI's bar again)
             }, 1500);
         });
-        gpu.on('ccu', (v) => { if (this.gpu !== gpu) return; if (this.onCcu && !this.own()) this.onCcu(v); else this._ccu(v); });
+        // the app's while it holds the controller (grab), also where the kit runs the screen (a game); a sheet over it takes it back
+        gpu.on('ccu', (v) => {
+            if (this.gpu !== gpu) return;
+            if (this.onCcu && (!this.own() || (this.grabbing && !this.sheet))) {
+                // the kit's knob count goes along, so its focus doesn't jump when the app lets go
+                this.ccuLast = { k: Number(v.frontRotaryEncoderOperation), pb: Number(v.frontRotaryEncoderPushButton), df: Number(v.frontRotaryEncoderDeflection) };
+                this.onCcu(v);
+            } else this._ccu(v);
+        });
         gpu.on('touch', (phase, x, y) => { if (this.gpu === gpu) this._touch(phase, x, y); });
         // the HMI was touched outside the tabs: shown again unless that left the screen
         gpu.on('closed', () => setTimeout(() => { if (this.gpu === gpu) this._syncVisible(); }, 700));
@@ -467,6 +476,11 @@ class Display {
         const at = (this.tabs || []).find(inside);
         if (!at && this.onTap && this.own() && phase === 3 && this.downAt && Math.abs(x - this.downAt.x) < 30 && Math.abs(y - this.downAt.y) < 30) {
             Promise.resolve().then(() => this.onTap(x, y)).catch((e) => this.log.error('tap', e));
+        }
+        // a finger swept over the page (not a scrolling one): ctx.onSwipe gets how far it went
+        if (!at && this.onSwipe && this.own() && !this.pageScroll && phase === 3 && this.downAt) {
+            const dx = x - this.downAt.x, dy = y - this.downAt.y;
+            if (Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_PX) Promise.resolve().then(() => this.onSwipe(dx, dy)).catch((e) => this.log.error('swipe', e));
         }
         if (phase === 1) this.tabDown = at ? at.i : -1;
         else if (phase === 3) {
@@ -881,4 +895,4 @@ class Display {
     onLayout(fn) { this.layoutHandlers.push(fn); }
 }
 
-module.exports = { Display, HMI, FULL };
+module.exports = { TILT, Display, HMI, FULL };

@@ -44,6 +44,16 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Hybrid Cost - price editor](docs/screenshots/hybrid_cost-price-editor.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
+### 3. 🐍 Snake (`snake`)
+*The classic game, drawn by the GPU renderer at 60 fps. Parked only.*
+
+* **Smooth at any speed**: the snake slides between cells every frame (mgu-render); without the renderer it still runs as HMI images, a few frames a second.
+* **iDrive controller**: push to go that way, turn to turn left / right, press to pause. Paused: push left leaves the app, a turn hands the controller back to the button bar and Settings.
+* **Touchscreen**: swipe to steer, tap on the board to turn towards the tap, tap beside it to pause.
+* **Settings**: speed (slow / normal / fast, faster with every food), edges (wrap around or solid walls), colour theme.
+* **Best score** kept for each speed and edge setting.
+* **Parked only**: pauses as soon as the car moves (above 3 km/h) and can't be started while driving.
+
 ---
 
 ## 🚀 Installation
@@ -88,10 +98,11 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost      # -> dist/<id>@<version>.tgz
+python3 kit/tools/build.py engine_care hybrid_cost snake   # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
+node tests/snake.test.js                                # Snake's rules
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```
