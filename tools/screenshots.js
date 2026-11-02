@@ -5,7 +5,7 @@
  * data: a sample state (some months after an oil change) and a car that sends steady values over a fake
  * SOME/IP and answers the diagnostic requests. No head unit needed.
  *
- *   python3 kit/tools/build.py engine_care hybrid_cost && node tools/screenshots.js
+ *   python3 kit/tools/build.py engine_care hybrid_cost snake && node tools/screenshots.js
  *
  * Each app runs in its own process (the fake clock replaces Date.now and the timers).
  */
@@ -20,7 +20,7 @@ const DAY = 86400000;
 
 if (!process.argv[2]) {
     fs.mkdirSync(OUT, { recursive: true });
-    for (const app of ['engine_care', 'hybrid_cost', 'price_editor']) {
+    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake']) {
         process.stdout.write(execFileSync(process.execPath, [__filename, app], { encoding: 'utf8' }));
     }
     process.exit(0);
@@ -112,7 +112,7 @@ const { Recorder, play } = require(path.join(APP, 'kit', 'record'));
 const { Canvas: AppCanvas } = require(path.join(APP, 'kit', 'canvas'));
 const toCanvas = (r) => { const cv = new AppCanvas(r.w, r.h); play(r.words(), cv); return cv; };
 const ctx = {
-    ui: { onClick: (n, fn) => { clicks[n] = fn; }, image: (n, r) => { last = toCanvas(r); return Promise.resolve(); }, onVisible() {} },
+    ui: { onClick: (n, fn) => { clicks[n] = fn; }, image: (n, r) => { last = toCanvas(r); return Promise.resolve(); }, onVisible() {}, text: async () => {} },
     settings: { get: (k) => values[k], set: (k, v) => { values[k] = v; }, onChange() {} },
     dataDir: DATA, signals, spec,
     log: { info() {}, warn() {}, error() {} },
@@ -136,13 +136,54 @@ if (which === 'engine_care') {
         lastLive: now - 60000,
         diag: { countedSec: 84.3 * H_, hiddenSec: 71.9 * H_, torqueEvMax: 4, torqueEvSec: 33 * H_ },
     }));
-} else {
+} else if (which === 'hybrid_cost') {
     fs.writeFileSync(path.join(DATA, 'hybrid_cost_state.json'), JSON.stringify({
         trip: { start: now - 41 * 60000, distanceMeters: 46.3e3, evMeters: 31.8e3, iceMeters: 14.5e3, evSec: 1690, iceSec: 790,
             kwhConsumed: 6.21, fuelLitersConsumed: 0.94, regenKwhHarvested: 0.87 },
         lastLive: now - 60000,
         prices: { EUR: { petrol: 1.69, elec: 0.28 } },
     }));
+}
+
+/* ---------- Snake: a seeded game played by a simple autopilot ---------- */
+if (which === 'snake') {
+    let seed = 7;
+    Math.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    fs.writeFileSync(path.join(DATA, 'snake_best.json'), JSON.stringify({ 'normal/wrap': 31 }));
+    // the game the app plays, to steer it
+    const M = require(path.join(APP, 'model'));
+    let g = null;
+    const Game = M.Game;
+    M.Game = class extends Game { constructor(o) { super(o); g = this; } };
+    M.Game.stepMs = Game.stepMs;
+    const wrapD = (a, b, n) => { const d = ((b - a) % n + n) % n; return d > n / 2 ? d - n : d; };
+    const free = (d) => {
+        const [dx, dy] = M.DIRS[d], h = g.snake[0];
+        const x = (h.x + dx + g.cols) % g.cols, y = (h.y + dy + g.rows) % g.rows;
+        return !g.snake.slice(0, -1).some((c) => c.x === x && c.y === y);
+    };
+    function steer() {
+        if (g.queue.length) return;
+        const h = g.snake[0], dx = wrapD(h.x, g.food.x, g.cols), dy = wrapD(h.y, g.food.y, g.rows);
+        const want = [dx > 0 ? 'E' : dx < 0 ? 'W' : null, dy > 0 ? 'S' : dy < 0 ? 'N' : null, g.dir, 'N', 'E', 'S', 'W'].filter(Boolean);
+        const d = want.find((x) => x !== { N: 'S', S: 'N', E: 'W', W: 'E' }[g.dir] && free(x));
+        if (d && d !== g.dir) g.turn(d);
+    }
+    (async () => {
+        require(path.join(APP, 'app.js'));
+        ctx.display = { own: () => true };          // as where the kit runs the screen (mgu-render): touch hints
+        await global.__app.start(ctx);
+        // frames 16 ms apart until the snake is long, then one caught between two steps; a crash plays again
+        for (;;) {
+            clicks.BTN_NEW();
+            while (g.score < 20 && !g.over) { now += 16; steer(); await ctx.draw(); }
+            for (let k = 0; k < 4 && !g.over; k++) { now += 16; steer(); await ctx.draw(); }
+            if (!g.over) break;
+        }
+        shot('snake-game', last);
+        process.exit(0);
+    })().catch((e) => { console.error(e); process.exit(1); });
+    return;
 }
 
 (async () => {

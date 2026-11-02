@@ -1,6 +1,6 @@
 # BMW iDrive 7 Custom Apps (MGU)
 
-Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
+Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus a game for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
 
 ---
 
@@ -54,6 +54,9 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 * **Best score** kept for each speed and edge setting.
 * **Parked only**: pauses as soon as the car moves (above 3 km/h) and can't be started while driving.
 
+![Snake - a game on the central display](docs/screenshots/snake-game.png)
+<sub>Screenshot drawn by the app on a PC (`tools/screenshots.js`), a game played by an autopilot.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -66,13 +69,15 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    github.com/aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care** or **Hybrid Cost**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost** or **Snake**.
+
+Snake runs smoothest with the **mgu-render** GPU renderer, installed from the same Store.
 
 ### Method 2: Via USB Stick
-1. Download `engine_care@<version>.tgz` and `hybrid_cost@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz` and `snake@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -81,6 +86,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ```bash
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact engine_care@1.5.2.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact hybrid_cost@1.1.2.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact snake@1.0.0.tgz --yes
 ```
 
 ---
@@ -98,7 +104,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost snake   # -> dist/<id>@<version>.tgz
+python3 kit/tools/build.py engine_care hybrid_cost snake  # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
