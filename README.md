@@ -1,6 +1,6 @@
 # BMW iDrive 7 Custom Apps (MGU)
 
-Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus a game for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
+Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus two games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
 
 ---
 
@@ -57,6 +57,20 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Snake - a game on the central display](docs/screenshots/snake-game.png)
 <sub>Screenshot drawn by the app on a PC (`tools/screenshots.js`), a game played by an autopilot.</sub>
 
+### 4. 🚀 Track Defender (`track_defender`)
+*An arcade shooter: drones attack the track in waves, the M car shoots them down. GPU renderer at 60 fps. Parked only.*
+
+* **Waves of drones**: they fly in on curves to a formation that sways and slowly sinks towards the track; some dive at the car and fire on the way. Heavy drones take two hits, every fifth wave is a boss drone.
+* **Barriers** between the car and the drones crumble under the drones' fire; the car's own shots pass through.
+* **The car fires by itself**: the **iDrive controller** drives it (turn = left / right, push left / right = a longer step), push up fires the **pulse** (clears the sky of bullets, hits every drone; charges again in 15 s), press pauses. On the **touchscreen** the car follows your finger, a tap on the pulse meter fires it.
+* **Power-ups** from downed drones: double fire, a guard that takes one hit, an extra life.
+* **Particle explosions, drifting stars, glowing shots** - all drawn by mgu-render every frame.
+* **Settings**: difficulty (easy / normal / hard), colour theme. Best score kept for each difficulty.
+* **Parked only**: pauses as soon as the car moves (above 3 km/h) and can't be started while driving.
+
+![Track Defender - wave 3, double fire](docs/screenshots/track_defender-game.png)
+<sub>Screenshot drawn by the app on a PC (`tools/screenshots.js`), a game played by an autopilot.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -69,15 +83,15 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    github.com/aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care**, **Hybrid Cost** or **Snake**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake** or **Track Defender**.
 
-Snake runs smoothest with the **mgu-render** GPU renderer, installed from the same Store.
+The games run smoothest with the **mgu-render** GPU renderer, installed from the same Store.
 
 ### Method 2: Via USB Stick
-1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz` and `snake@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz` and `track_defender@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -87,6 +101,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact engine_care@1.5.2.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact hybrid_cost@1.1.2.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact snake@1.0.0.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact track_defender@1.0.0.tgz --yes
 ```
 
 ---
@@ -104,11 +119,12 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost snake  # -> dist/<id>@<version>.tgz
+python3 kit/tools/build.py engine_care hybrid_cost snake track_defender  # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
 node tests/snake.test.js                                # Snake's rules
+node tests/track_defender.test.js                       # Track Defender's rules
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```

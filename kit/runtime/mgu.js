@@ -523,6 +523,8 @@ async function runInner(impl) {
         onTap(fn) { display.onTap = fn; },
         /** onSwipe(fn): fn(dx, dy) for a finger swept over the page (app drawing px), where the kit runs the screen. */
         onSwipe(fn) { display.onSwipe = fn; },
+        /** onTouch(fn): fn(phase, x, y) for every touch on the page (1 down, 2 move, 3 up; app drawing px), where the kit runs the screen; no taps or swipes then. */
+        onTouch(fn) { display.onTouch = fn; },
         /** Show a sheet (sheet.js) over the page; false where it can't be (software path, other renderers). */
         sheet(sh) { return display.openSheet(sh); },
         /** hideButton(id): leave bar button id out where the kit runs the screen (its job is on the page there). */

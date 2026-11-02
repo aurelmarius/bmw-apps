@@ -437,6 +437,13 @@ class Display {
             const tab = !bar && (this.tabs || []).find(inside);
             const tgt = !bar && !tab && !this.sheet ? (this.pageTargets || []).find(inside) : null;
             const key = bar ? 'bar:' + bar.id : tab ? 'tab:' + tab.i : tgt ? 'tgt:' + tgt.key : this.sheet ? 'sheet:' + (this.sheetTargets || []).findIndex(inside) : null;
+            // a game takes the page's touches as they come (ctx.onTouch: 1 down, 2 move, 3 up), from a finger
+            // put down on the page to where it lifts, even over the bar
+            if (this.onTouch && !this.sheet && (this.touching || (phase === 1 && !bar && !tab))) {
+                this.touching = phase !== 3;
+                Promise.resolve().then(() => this.onTouch(phase, x, y)).catch((e) => this.log.error('touch', e));
+                return;
+            }
             if (phase === 3 && this.dragging && !this.sheet) { this.dragging = false; this.ownDown = null; return; }
             if (phase === 3 && !this.dragging && key && key === this.ownDown && (tab || tgt)) {
                 this.ownDown = null;

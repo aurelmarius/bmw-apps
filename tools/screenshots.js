@@ -5,7 +5,7 @@
  * data: a sample state (some months after an oil change) and a car that sends steady values over a fake
  * SOME/IP and answers the diagnostic requests. No head unit needed.
  *
- *   python3 kit/tools/build.py engine_care hybrid_cost snake && node tools/screenshots.js
+ *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender && node tools/screenshots.js
  *
  * Each app runs in its own process (the fake clock replaces Date.now and the timers).
  */
@@ -20,7 +20,7 @@ const DAY = 86400000;
 
 if (!process.argv[2]) {
     fs.mkdirSync(OUT, { recursive: true });
-    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake']) {
+    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender']) {
         process.stdout.write(execFileSync(process.execPath, [__filename, app], { encoding: 'utf8' }));
     }
     process.exit(0);
@@ -106,13 +106,15 @@ const values = {};
 spec.settings.forEach((s) => { values[s.key] = s.default; });
 Object.assign(values, { demo: 'off', diagPage: true, currency: 'EUR', purePetrolAvg: 7.5 });
 const clicks = {};
-let last = null;
+let last = null, lastRec = null;
 // the app draws on the kit's recorder (as on the car); the recording is played into a canvas for the PNG
 const { Recorder, play } = require(path.join(APP, 'kit', 'record'));
 const { Canvas: AppCanvas } = require(path.join(APP, 'kit', 'canvas'));
 const toCanvas = (r) => { const cv = new AppCanvas(r.w, r.h); play(r.words(), cv); return cv; };
+// the last frame drawn, played into a canvas only when it is shot (the games draw hundreds before)
+Object.defineProperty(global, 'lastFrame', { get: () => (lastRec ? (last = toCanvas(lastRec), lastRec = null, last) : last) });
 const ctx = {
-    ui: { onClick: (n, fn) => { clicks[n] = fn; }, image: (n, r) => { last = toCanvas(r); return Promise.resolve(); }, onVisible() {}, text: async () => {} },
+    ui: { onClick: (n, fn) => { clicks[n] = fn; }, image: (n, r) => { lastRec = r; return Promise.resolve(); }, onVisible() {}, text: async () => {} },
     settings: { get: (k) => values[k], set: (k, v) => { values[k] = v; }, onChange() {} },
     dataDir: DATA, signals, spec,
     log: { info() {}, warn() {}, error() {} },
@@ -143,6 +145,41 @@ if (which === 'engine_care') {
         lastLive: now - 60000,
         prices: { EUR: { petrol: 1.69, elec: 0.28 } },
     }));
+}
+
+/* ---------- Track Defender: a seeded game, the car under the nearest drone ---------- */
+if (which === 'track_defender') {
+    let seed = 11;
+    Math.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    fs.writeFileSync(path.join(DATA, 'track_defender_best.json'), JSON.stringify({ normal: 2140 }));
+    const M = require(path.join(APP, 'model'));
+    let g = null;
+    const Game = M.Game;
+    M.Game = class extends Game { constructor(o) { super(o); g = this; } };
+    (async () => {
+        require(path.join(APP, 'app.js'));
+        ctx.display = { own: () => true };          // as where the kit runs the screen (mgu-render): touch hints
+        await global.__app.start(ctx);
+        for (;;) {
+            clicks.BTN_NEW();
+            // into wave 3, then a moment just after a drone went down (its particles in the air)
+            let scored = false;
+            while (!g.over && (g.wave < 3 || g.enemies.length > 26 || !scored)) {
+                now += 16;
+                const e = g.enemies.filter((q) => q.state !== 'enter').sort((a, b) => b.y - a.y)[0];
+                if (e) g.moveTo(e.x);
+                const before = g.score;
+                await ctx.draw();
+                scored = g.score > before;
+                if (now % 160000 < 16) process.stderr.write('wave ' + g.wave + ' score ' + g.score + ' lives ' + g.lives + '\n');
+            }
+            for (let k = 0; k < 6 && !g.over; k++) { now += 16; await ctx.draw(); }
+            if (!g.over) break;
+        }
+        shot('track_defender-game', lastFrame);
+        process.exit(0);
+    })().catch((e) => { console.error(e); process.exit(1); });
+    return;
 }
 
 /* ---------- Snake: a seeded game played by a simple autopilot ---------- */
@@ -180,7 +217,7 @@ if (which === 'snake') {
             for (let k = 0; k < 4 && !g.over; k++) { now += 16; steer(); await ctx.draw(); }
             if (!g.over) break;
         }
-        shot('snake-game', last);
+        shot('snake-game', lastFrame);
         process.exit(0);
     })().catch((e) => { console.error(e); process.exit(1); });
     return;
@@ -200,7 +237,7 @@ if (which === 'snake') {
         if (p) clicks.BTN_PAGE();
         await advance(1000, () => drive(74, 2150, 128, i++));
         await ctx.draw();
-        shot(which + '-' + pages[p], last);
+        shot(which + '-' + pages[p], lastFrame);
     }
     process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

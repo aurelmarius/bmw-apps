@@ -2,7 +2,7 @@
 /**
  * make_icon.js <glyph> <out.png> - 140x140 app tile icon in the HMI's style
  * (white line art on transparent, one accent element). Glyphs: gauge, flag,
- * engine, battery, service, doom, snake, ..., or any 1-3 characters (drawn as text).
+ * engine, battery, service, doom, snake, drone, ..., or any 1-3 characters (drawn as text).
  */
 const fs = require('fs');
 const path = require('path');
@@ -106,6 +106,16 @@ if (glyph === 'gauge') {
     c.convex([[96, 56], [74, 64], [78, 78], [94, 74]], A);
     c.convex([[70, 82], [64, 94], [76, 94]], '#000000');     // nose
     for (let i = 0; i < 4; i++) c.fillRect(52 + i * 11, 104, 3, 16, '#000000');   // teeth
+} else if (glyph === 'drone') {
+    // a drone in the crosshair, a shot coming up at it
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        c.line(70, 52, 70 + sx * 30, 52 + sy * 20, 6, W);
+        c.arc(70 + sx * 30, 52 + sy * 20, 10, 15, 0, 360, W);
+    }
+    c.circle(70, 52, 14, W);
+    c.circle(70, 54, 5, A);
+    c.roundRect(66, 92, 8, 22, 4, B);
+    c.fillRect(30, 122, 80, 6, W);
 } else if (glyph === 'snake') {
     // snake winding over a grid towards a red apple
     c.polyline([[22, 112], [22, 84], [70, 84], [70, 56], [36, 56], [36, 30], [86, 30]], 14, W);
