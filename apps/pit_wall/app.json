@@ -1,0 +1,125 @@
+{
+  "id": "pit_wall",
+  "title": "Pit Wall",
+  "description": "Break the advertising panels off the pit wall: a night race scene drawn by the GPU renderer at 60 fps, the ball on an M front wing, start lights, combos and power-ups. iDrive controller or touch. Parked only.",
+  "version": "1.0.0",
+  "vendor": "custom",
+  "loggingId": "OA9W",
+  "iconGlyph": "wall",
+  "signals": {
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "Pit Wall",
+      "buttons": [
+        [
+          "BTN_PLAY",
+          "Start"
+        ],
+        [
+          "BTN_LEFT",
+          "Left"
+        ],
+        [
+          "BTN_RIGHT",
+          "Right"
+        ],
+        [
+          "BTN_LAUNCH",
+          "Launch"
+        ],
+        [
+          "BTN_NEW",
+          "New Game"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "speed",
+      "label": "Ball speed",
+      "type": "choice",
+      "default": "normal",
+      "options": [
+        [
+          "relaxed",
+          "Relaxed"
+        ],
+        [
+          "normal",
+          "Normal"
+        ],
+        [
+          "fast",
+          "Fast"
+        ]
+      ]
+    },
+    {
+      "key": "theme",
+      "label": "Colour theme",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # BMW iDrive 7 Custom Apps (MGU)
 
-Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus two games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
+Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus three games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
 
 ---
 
@@ -71,6 +71,22 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Track Defender - wave 3, double fire](docs/screenshots/track_defender-game.png)
 <sub>Screenshot drawn by the app on a PC (`tools/screenshots.js`), a game played by an autopilot.</sub>
 
+### 5. 🏁 Pit Wall (`pit_wall`)
+*Break the advertising panels off the pit wall, catching the ball on an M front wing. A night race scene at 60 fps. Parked only.*
+
+* **The scene**: floodlights over a grandstand full of camera flashes, glossy sponsor panels that shatter into shards, carbon panels that crack before they go, fuel cans that explode and take their neighbours with them (the screen shakes).
+* **Start lights**: every level starts with five red lights; the ball goes when they go out.
+* **The wing**: where the ball hits it sets the angle; the ball speeds up with every panel.
+* **Combos**: panels in a row without touching the wing multiply the score (x2 .. x5).
+* **Power-ups**: DRS (a wider wing), split (three balls), turbo (the ball burns through panels), slow ball, extra life.
+* **Six walls** (Main Straight, The Wedge, Three Stripes, Chicane, Diamond, The Circuit), harder each round.
+* **iDrive controller**: turn to move the wing, push left / right for a longer step, press to launch (or pause). **Touchscreen**: the wing follows your finger, tap to launch.
+* **Settings**: ball speed (relaxed / normal / fast), colour theme. Best score kept for each ball speed.
+* **Parked only**: pauses as soon as the car moves (above 3 km/h) and can't be started while driving.
+
+![Pit Wall - level 4, a combo x3, DRS open](docs/screenshots/pit_wall-game.png)
+<sub>Screenshot drawn by the app on a PC (`tools/screenshots.js`), a game played by an autopilot.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -83,15 +99,15 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    github.com/aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake** or **Track Defender**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake**, **Track Defender** or **Pit Wall**.
 
 The games run smoothest with the **mgu-render** GPU renderer, installed from the same Store.
 
 ### Method 2: Via USB Stick
-1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz` and `track_defender@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz`, `track_defender@<version>.tgz` and `pit_wall@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -102,6 +118,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact hybrid_cost@1.1.2.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact snake@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact track_defender@1.0.0.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact pit_wall@1.0.0.tgz --yes
 ```
 
 ---
@@ -119,12 +136,13 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost snake track_defender  # -> dist/<id>@<version>.tgz
+python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall  # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
 node tests/snake.test.js                                # Snake's rules
 node tests/track_defender.test.js                       # Track Defender's rules
+node tests/pit_wall.test.js                             # Pit Wall's rules
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```

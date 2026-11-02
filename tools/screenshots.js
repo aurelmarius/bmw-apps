@@ -5,7 +5,7 @@
  * data: a sample state (some months after an oil change) and a car that sends steady values over a fake
  * SOME/IP and answers the diagnostic requests. No head unit needed.
  *
- *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender && node tools/screenshots.js
+ *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall && node tools/screenshots.js
  *
  * Each app runs in its own process (the fake clock replaces Date.now and the timers).
  */
@@ -20,7 +20,7 @@ const DAY = 86400000;
 
 if (!process.argv[2]) {
     fs.mkdirSync(OUT, { recursive: true });
-    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender']) {
+    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender', 'pit_wall']) {
         process.stdout.write(execFileSync(process.execPath, [__filename, app], { encoding: 'utf8' }));
     }
     process.exit(0);
@@ -145,6 +145,37 @@ if (which === 'engine_care') {
         lastLive: now - 60000,
         prices: { EUR: { petrol: 1.69, elec: 0.28 } },
     }));
+}
+
+/* ---------- Pit Wall: a seeded game, the wing under the ball, caught in a combo ---------- */
+if (which === 'pit_wall') {
+    let seed = 5;
+    Math.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    fs.writeFileSync(path.join(DATA, 'pit_wall_best.json'), JSON.stringify({ normal: 9850 }));
+    const M = require(path.join(APP, 'model'));
+    let g = null;
+    const Game = M.Game;
+    M.Game = class extends Game { constructor(o) { super(o); g = this; } };
+    (async () => {
+        require(path.join(APP, 'app.js'));
+        ctx.display = { own: () => true };          // as where the kit runs the screen (mgu-render): touch hints
+        await global.__app.start(ctx);
+        clicks.BTN_PLAY();
+        // up to level 4, then a frame just after a panel broke in a combo of x3 or more (or after 20 minutes)
+        for (let i = 0; i < 75000; i++) {
+            now += 16;
+            const b = g.balls.find((q) => !q.held) || g.balls[0];
+            g.moveTo(b.x + Math.sin(now / 1900) * g.wing.w * 0.3);
+            const before = g.score;
+            await ctx.draw();
+            if (g.over) clicks.BTN_NEW();
+            if (g.level >= 4 && g.mult() >= 3 && g.score > before && g.bricks.length < 45) break;
+        }
+        for (let k = 0; k < 5; k++) { now += 16; await ctx.draw(); }
+        shot('pit_wall-game', lastFrame);
+        process.exit(0);
+    })().catch((e) => { console.error(e); process.exit(1); });
+    return;
 }
 
 /* ---------- Track Defender: a seeded game, the car under the nearest drone ---------- */
