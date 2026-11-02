@@ -35,6 +35,23 @@
         "url": "packages/hybrid_cost@1.1.2.tgz"
       },
       "uninstallable": true
+    },
+    {
+      "id": "snake",
+      "kind": "app",
+      "version": "1.0.0",
+      "title": "Snake",
+      "description": "Snake on the central display, drawn by the GPU renderer at 60 fps: steer with the iDrive controller (push or turn) or swipe on the screen. Parked only.",
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "snake@1.0.0.tgz",
+        "size": 557541,
+        "sha256": "2b0f904d6b1e594a5eab9c362b6271116aab67e6b174097759e526a6749fc7fc",
+        "url": "packages/snake@1.0.0.tgz"
+      },
+      "uninstallable": true
     }
   ]
 }
