@@ -37,6 +37,23 @@
       "uninstallable": true
     },
     {
+      "id": "pit_wall",
+      "kind": "app",
+      "version": "1.0.0",
+      "title": "Pit Wall",
+      "description": "Break the advertising panels off the pit wall: a night race scene drawn by the GPU renderer at 60 fps, the ball on an M front wing, start lights, combos and power-ups. iDrive controller or touch. Parked only.",
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "pit_wall@1.0.0.tgz",
+        "size": 565426,
+        "sha256": "1d7aad8daf93446ff419c3236656f6f76df8e62342a052b14ec38e259462212a",
+        "url": "packages/pit_wall@1.0.0.tgz"
+      },
+      "uninstallable": true
+    },
+    {
       "id": "snake",
       "kind": "app",
       "version": "1.0.0",

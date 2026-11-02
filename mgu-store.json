@@ -14,6 +14,13 @@
       "icon": "hybrid_cost.png",
       "iconSha256": "37cc0d55a3ba679809bee3ad470d0d8a5693033f795736bb8c413105d0d8d290"
     },
+    "pit_wall": {
+      "title": "Pit Wall",
+      "description": "Break the advertising panels off the pit wall: a night race scene drawn by the GPU renderer at 60 fps, the ball on an M front wing, start lights, combos and power-ups. iDrive controller or touch. Parked only.",
+      "author": "custom",
+      "icon": "pit_wall.png",
+      "iconSha256": "bb29f663abcb1a14203087f26224b2f6b55debd6f529b38229f91319f94fad0b"
+    },
     "snake": {
       "title": "Snake",
       "description": "Snake on the central display, drawn by the GPU renderer at 60 fps: steer with the iDrive controller (push or turn) or swipe on the screen. Parked only.",
