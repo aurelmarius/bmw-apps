@@ -20,6 +20,13 @@
       "author": "custom",
       "icon": "snake.png",
       "iconSha256": "19bceca073c4d63c2cceae959171571eea55432471bfb569d5bf33cb947a6a03"
+    },
+    "track_defender": {
+      "title": "Track Defender",
+      "description": "Arcade shooter on the central display, drawn by the GPU renderer at 60 fps: drones attack the track in waves, the M car shoots them down. iDrive controller or touch. Parked only.",
+      "author": "custom",
+      "icon": "track_defender.png",
+      "iconSha256": "24c81280b14e8e2732c78d1880e0f610634b6656b6e1716d7e47bcee65b4a8cb"
     }
   }
 }

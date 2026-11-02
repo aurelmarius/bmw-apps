@@ -52,6 +52,23 @@
         "url": "packages/snake@1.0.0.tgz"
       },
       "uninstallable": true
+    },
+    {
+      "id": "track_defender",
+      "kind": "app",
+      "version": "1.0.0",
+      "title": "Track Defender",
+      "description": "Arcade shooter on the central display, drawn by the GPU renderer at 60 fps: drones attack the track in waves, the M car shoots them down. iDrive controller or touch. Parked only.",
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "track_defender@1.0.0.tgz",
+        "size": 565022,
+        "sha256": "19c523659942a41a35eea3febd91b1bc23b068db58944a3aa466fd3fbf5bffcf",
+        "url": "packages/track_defender@1.0.0.tgz"
+      },
+      "uninstallable": true
     }
   ]
 }
