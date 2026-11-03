@@ -1,0 +1,30 @@
+name: Retire Releases
+
+# Marks older releases as pre-releases. mgu-store reads every published release of a Releases source
+# (pre-releases and drafts not), so packages an old release still carries (an id since renamed or
+# moved) would show in the Store again; retired, they don't, and the releases stay as they were.
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Release tags to retire, separated by spaces (e.g. v1.1.0 v1.1.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark them pre-releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAGS: ${{ github.event.inputs.tags }}
+        run: |
+          for t in $TAGS; do
+            echo "retiring $t"
+            gh release edit "$t" --prerelease
+          done
+          gh release list --limit 30
