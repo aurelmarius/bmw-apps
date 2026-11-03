@@ -1,6 +1,6 @@
 # BMW iDrive 7 Custom Apps (MGU)
 
-Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus four games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
+Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus five games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
 
 ---
 
@@ -108,6 +108,23 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Lucky Sevens - statistics](docs/screenshots/lucky_sevens-stats.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`), seeded spins.</sub>
 
+### 7. 🃏 Blackjack (`blackjack`)
+*Casino blackjack for play credits, drawn by the GPU renderer at 60 fps. Parked only.*
+
+* **The table**: felt lit from above, a padded leather rail along its curved edge, the table's printing in gold along the arc, the dealer's chip rack, the shoe and the discard tray. Cards with real pips and court cards in a gold frame, casino chips in perspective.
+* **Dealt like at the casino**: the cards fly from the shoe and settle in a fan, the dealer's hole card turns over, chips slide to the bet, winnings come from the dealer's rack, lost bets go to it, finished cards go to the discard tray.
+* **Casino rules**: six decks shuffled again at the cut card, the dealer stands on 17 and peeks for blackjack, blackjack pays 3 to 2, double on any two cards (also after a split), split pairs up to four hands (split aces take one card), insurance pays 2 to 1.
+* **Strategy hint** (setting): the key basic strategy plays lights up, and the panel says why (e.g. `11 vs 5 · TIP: DOUBLE`).
+* **Statistics** (STATS key, or push the controller down): hands, won, lost, pushes, blackjacks, win rate, best win, longest winning streak, doubles and splits, paid back %.
+* **iDrive controller**: betting: press = deal, turn = bet; playing: turn to choose HIT / STAND / DOUBLE / SPLIT and press, or push up = hit, down = stand, right = double, left = split. **Touchscreen**: the panel's keys.
+* **Play credits only**: nothing to buy, nothing to win. Out of credits, DEAL gives 1 000 new ones. Credits, bet and statistics are kept between drives.
+* **Settings**: table felt (green / blue / red / black), card backs (red / blue), dealing speed, strategy hint on / off.
+* **Parked only**: no new hand while the car moves (above 3 km/h); a hand in play waits.
+
+![Blackjack - 11 against a 5: the hint says double](docs/screenshots/blackjack-play.png)
+![Blackjack - a split of sixes, the dealer busts](docs/screenshots/blackjack-split.png)
+<sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`), seeded hands played by basic strategy.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -120,15 +137,15 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    github.com/aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake**, **Track Defender**, **Pit Wall** or **Lucky Sevens**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake**, **Track Defender**, **Pit Wall**, **Lucky Sevens** or **Blackjack**.
 
 The games run smoothest with the **mgu-render** GPU renderer, installed from the same Store.
 
 ### Method 2: Via USB Stick
-1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz`, `track_defender@<version>.tgz`, `pit_wall@<version>.tgz` and `lucky_sevens@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz`, `track_defender@<version>.tgz`, `pit_wall@<version>.tgz`, `lucky_sevens@<version>.tgz` and `blackjack@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz lucky_sevens@1.1.0.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz lucky_sevens@1.1.0.tgz blackjack@1.0.0.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -141,6 +158,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact track_defender@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact pit_wall@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact lucky_sevens@1.1.0.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact blackjack@1.0.0.tgz --yes
 ```
 
 ---
@@ -158,7 +176,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall lucky_sevens  # -> dist/<id>@<version>.tgz
+python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall lucky_sevens blackjack  # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
@@ -166,6 +184,7 @@ node tests/snake.test.js                                # Snake's rules
 node tests/track_defender.test.js                       # Track Defender's rules
 node tests/pit_wall.test.js                             # Pit Wall's rules
 node tests/lucky_sevens.test.js                         # Lucky Sevens' rules
+node tests/blackjack.test.js                            # Blackjack's rules
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```

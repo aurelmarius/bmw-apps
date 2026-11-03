@@ -5,7 +5,7 @@
  * data: a sample state (some months after an oil change) and a car that sends steady values over a fake
  * SOME/IP and answers the diagnostic requests. No head unit needed.
  *
- *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall lucky_sevens && node tools/screenshots.js
+ *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall lucky_sevens blackjack && node tools/screenshots.js
  *
  * Each app runs in its own process (the fake clock replaces Date.now and the timers).
  */
@@ -20,7 +20,7 @@ const DAY = 86400000;
 
 if (!process.argv[2]) {
     fs.mkdirSync(OUT, { recursive: true });
-    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender', 'pit_wall', 'lucky_sevens']) {
+    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender', 'pit_wall', 'lucky_sevens', 'blackjack']) {
         process.stdout.write(execFileSync(process.execPath, [__filename, app], { encoding: 'utf8' }));
     }
     process.exit(0);
@@ -229,6 +229,57 @@ if (which === 'lucky_sevens') {
         clicks.BTN_STATS();
         await frames(200);
         shot('lucky_sevens-stats', lastFrame);
+        process.exit(0);
+    })().catch((e) => { console.error(e); process.exit(1); });
+    return;
+}
+
+/* ---------- Blackjack: seeded hands, one in play with the hint, then a split that won ---------- */
+if (which === 'blackjack') {
+    let seed = 12;
+    Math.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    fs.writeFileSync(path.join(DATA, 'blackjack.json'), JSON.stringify({
+        credits: 4250, bet: 50,
+        stats: { hands: 312, won: 139, lost: 148, pushes: 25, blackjacks: 14, bet: 17650, paid: 17480, bestWin: 300, streak: 2, bestStreak: 7, doubles: 31, splits: 9 },
+    }));
+    const M = require(path.join(APP, 'model'));
+    let g = null;
+    const Game = M.Game;
+    M.Game = class extends Game { constructor(o) { super(o); g = this; } };
+    (async () => {
+        require(path.join(APP, 'app.js'));
+        ctx.display = { own: () => true };          // as where the kit runs the screen (mgu-render): touch hints
+        await global.__app.start(ctx);
+        const frames = async (ms) => { for (let t = 0; t < ms; t += 16) { now += 16; await ctx.draw(); } };
+        const play = async () => {                  // basic strategy, as a player who follows the hint
+            for (let k = 0; k < 30 && (g.phase === 'play' || g.phase === 'insurance'); k++) {
+                if (g.phase === 'insurance') clicks.BTN_STAND(); else ({ hit: clicks.BTN_MAIN, stand: clicks.BTN_STAND, double: clicks.BTN_DOUBLE, split: clicks.BTN_SPLIT })[g.advice()]();
+                await frames(1200);
+            }
+        };
+        // a hand to double: 10 or 11 against a small card
+        for (let i = 0; i < 400; i++) {
+            clicks.BTN_MAIN();
+            await frames(2400);
+            if (g.phase === 'play' && g.advice() === 'double') break;
+            await play();
+            await frames(2600);
+        }
+        await frames(300);
+        shot('blackjack-play', lastFrame);
+        await play();
+        await frames(2600);
+        // a split that won
+        for (let i = 0; i < 2000; i++) {
+            clicks.BTN_MAIN();
+            await frames(2400);
+            const split = g.phase === 'play' && g.advice() === 'split';
+            await play();
+            await frames(3000);
+            if (split && g.hands.length >= 2 && g.hands.every((h) => h.result === 'win' || h.result === 'push') && g.hands.some((h) => h.result === 'win')) break;
+        }
+        await frames(300);
+        shot('blackjack-split', lastFrame);
         process.exit(0);
     })().catch((e) => { console.error(e); process.exit(1); });
     return;
