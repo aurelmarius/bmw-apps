@@ -2,7 +2,7 @@
 
 Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
 
-The games (Snake, Track Defender, Pit Wall, Lucky Sevens, Blackjack) have moved to their own repository: **[aurelmarius/bmw-games](https://github.com/aurelmarius/bmw-games)** (add `github.com/aurelmarius/bmw-games` in the Store).
+The games (Snake, Track Defender, Pit Wall, Lucky Sevens, Blackjack, Solitaire, Apex Chase, Street Siege) are in their own repository: **[aurelmarius/bmw-games](https://github.com/aurelmarius/bmw-games)** (add `aurelmarius/bmw-games` as a source in the Store).
 
 ---
 
@@ -52,10 +52,10 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 
 ### Method 1: Via mgu-store (Recommended)
 1. Open **Store** on your BMW central display.
-2. Go to **Settings** -> **Add repository**.
+2. Go to **Settings** -> **Add source**.
 3. Enter:
    ```text
-   github.com/aurelmarius/bmw-apps
+   aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
 5. Tap **Install** next to **Engine Care** or **Hybrid Cost**.
