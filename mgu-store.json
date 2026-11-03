@@ -13,34 +13,6 @@
       "author": "custom",
       "icon": "hybrid_cost.png",
       "iconSha256": "37cc0d55a3ba679809bee3ad470d0d8a5693033f795736bb8c413105d0d8d290"
-    },
-    "lucky_sevens": {
-      "title": "Lucky Sevens",
-      "description": "A five reel slot machine for play credits, drawn by the GPU renderer at 60 fps: glossy symbols, reels that bounce to a stop, ten paylines, WILD, free spins, a progressive jackpot, statistics. iDrive controller or touch. Parked only.",
-      "author": "custom",
-      "icon": "lucky_sevens.png",
-      "iconSha256": "2c446e07e482a3f68a463578ec7d28307b6bb3b997e6d15a9b0ba4f90b7c7815"
-    },
-    "pit_wall": {
-      "title": "Pit Wall",
-      "description": "Break the advertising panels off the pit wall: a night race scene drawn by the GPU renderer at 60 fps, the ball on an M front wing, start lights, combos and power-ups. iDrive controller or touch. Parked only.",
-      "author": "custom",
-      "icon": "pit_wall.png",
-      "iconSha256": "bb29f663abcb1a14203087f26224b2f6b55debd6f529b38229f91319f94fad0b"
-    },
-    "snake": {
-      "title": "Snake",
-      "description": "Snake on the central display, drawn by the GPU renderer at 60 fps: steer with the iDrive controller (push or turn) or swipe on the screen. Parked only.",
-      "author": "custom",
-      "icon": "snake.png",
-      "iconSha256": "19bceca073c4d63c2cceae959171571eea55432471bfb569d5bf33cb947a6a03"
-    },
-    "track_defender": {
-      "title": "Track Defender",
-      "description": "Arcade shooter on the central display, drawn by the GPU renderer at 60 fps: drones attack the track in waves, the M car shoots them down. iDrive controller or touch. Parked only.",
-      "author": "custom",
-      "icon": "track_defender.png",
-      "iconSha256": "24c81280b14e8e2732c78d1880e0f610634b6656b6e1716d7e47bcee65b4a8cb"
     }
   }
 }
