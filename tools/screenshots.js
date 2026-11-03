@@ -5,7 +5,7 @@
  * data: a sample state (some months after an oil change) and a car that sends steady values over a fake
  * SOME/IP and answers the diagnostic requests. No head unit needed.
  *
- *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall && node tools/screenshots.js
+ *   python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall lucky_sevens && node tools/screenshots.js
  *
  * Each app runs in its own process (the fake clock replaces Date.now and the timers).
  */
@@ -20,7 +20,7 @@ const DAY = 86400000;
 
 if (!process.argv[2]) {
     fs.mkdirSync(OUT, { recursive: true });
-    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender', 'pit_wall']) {
+    for (const app of ['engine_care', 'hybrid_cost', 'price_editor', 'snake', 'track_defender', 'pit_wall', 'lucky_sevens']) {
         process.stdout.write(execFileSync(process.execPath, [__filename, app], { encoding: 'utf8' }));
     }
     process.exit(0);
@@ -173,6 +173,40 @@ if (which === 'pit_wall') {
         }
         for (let k = 0; k < 5; k++) { now += 16; await ctx.draw(); }
         shot('pit_wall-game', lastFrame);
+        process.exit(0);
+    })().catch((e) => { console.error(e); process.exit(1); });
+    return;
+}
+
+/* ---------- Lucky Sevens: seeded spins, the reels caught running, then a win on several lines ---------- */
+if (which === 'lucky_sevens') {
+    let seed = 7;
+    Math.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    fs.writeFileSync(path.join(DATA, 'lucky_sevens.json'), JSON.stringify({ credits: 48320, coin: 5, bestWin: 12500 }));
+    const M = require(path.join(APP, 'model'));
+    let g = null;
+    const Game = M.Game;
+    M.Game = class extends Game { constructor(o) { super(o); g = this; } };
+    (async () => {
+        require(path.join(APP, 'app.js'));
+        ctx.display = { own: () => true };          // as where the kit runs the screen (mgu-render): touch hints
+        await global.__app.start(ctx);
+        const frames = async (ms) => { for (let t = 0; t < ms; t += 16) { now += 16; await ctx.draw(); } };
+        // the reels running: the last ones still a blur
+        clicks.BTN_SPIN();
+        await frames(1150);
+        shot('lucky_sevens-spin', lastFrame);
+        // spins until one pays three sevens or more and on other lines too; its first moment: every line lit
+        for (let i = 0; i < 3000; i++) {
+            while (g.spinning) await frames(16);
+            const r = g.result;
+            if (r.wins.length >= 2 && r.level === 'win' && r.wins.some((w) => w.sym === 'seven' && w.count >= 3)) break;
+            await frames(1500);
+            g.credits = Math.max(g.credits, 5000);
+            clicks.BTN_SPIN();
+        }
+        await frames(450);
+        shot('lucky_sevens-win', lastFrame);
         process.exit(0);
     })().catch((e) => { console.error(e); process.exit(1); });
     return;

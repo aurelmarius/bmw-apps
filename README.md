@@ -1,6 +1,6 @@
 # BMW iDrive 7 Custom Apps (MGU)
 
-Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus three games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
+Custom applications designed for BMW iDrive 7 (MGU head units) running on BMW PHEV models (B48 petrol engine + eDrive electric motor), plus four games for when the car is parked, compatible with **Robert Nisipeanu's mgu-store** and **IterioDev's App Manager**.
 
 ---
 
@@ -87,6 +87,22 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Pit Wall - level 4, a combo x3, DRS open](docs/screenshots/pit_wall-game.png)
 <sub>Screenshot drawn by the app on a PC (`tools/screenshots.js`), a game played by an autopilot.</sub>
 
+### 6. 🎰 Lucky Sevens (`lucky_sevens`)
+*A five reel slot machine for play credits, drawn by the GPU renderer at 60 fps. Parked only.*
+
+* **The machine**: a lacquered cabinet in a gold moulding with marquee bulbs, reels behind curved glass in a chrome bezel, glossy symbols lit from the top left (an extruded 7 with a gold rim, cherries, lemon, bell, BAR, a cut diamond, the WILD star), a control panel with LCD read-outs and a domed SPIN button.
+* **Reels that feel real**: each winds up, runs with a motion blur, and stops one after the other with a small bounce; the bulbs chase round the machine while they run.
+* **Ten paylines**, paid left to right from the first reel (cherries from two), **WILD** stands in for any symbol. A win lights its lines one by one, frames the symbols that pay (the higher ones in light rays), counts up into the credits; a big win throws a fountain of coins over the machine.
+* **Bet** 1 to 50 per line, **max bet**, **autoplay**; press while the reels run to stop them at once.
+* **iDrive controller**: press = spin, turn = bet, push up = autoplay, push right = max bet. **Touchscreen**: the panel's keys, or tap the reels to spin.
+* **Play credits only**: nothing to buy, nothing to win. Out of credits, the SPIN button gives 1 000 new ones. The machine pays back about 96 of every 100 credits bet. Credits, bet and best win are kept between drives.
+* **Settings**: cabinet colour (ruby / sapphire / emerald / onyx), reel speed (normal / fast).
+* **Parked only**: no spin while the car moves (above 3 km/h), autoplay goes off.
+
+![Lucky Sevens - the reels running](docs/screenshots/lucky_sevens-spin.png)
+![Lucky Sevens - a win on several lines](docs/screenshots/lucky_sevens-win.png)
+<sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`), seeded spins.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -99,15 +115,15 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    github.com/aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake**, **Track Defender** or **Pit Wall**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Snake**, **Track Defender**, **Pit Wall** or **Lucky Sevens**.
 
 The games run smoothest with the **mgu-render** GPU renderer, installed from the same Store.
 
 ### Method 2: Via USB Stick
-1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz`, `track_defender@<version>.tgz` and `pit_wall@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz`, `track_defender@<version>.tgz`, `pit_wall@<version>.tgz` and `lucky_sevens@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz lucky_sevens@1.0.0.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -119,6 +135,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact snake@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact track_defender@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact pit_wall@1.0.0.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact lucky_sevens@1.0.0.tgz --yes
 ```
 
 ---
@@ -136,13 +153,14 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall  # -> dist/<id>@<version>.tgz
+python3 kit/tools/build.py engine_care hybrid_cost snake track_defender pit_wall lucky_sevens  # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
 node tests/snake.test.js                                # Snake's rules
 node tests/track_defender.test.js                       # Track Defender's rules
 node tests/pit_wall.test.js                             # Pit Wall's rules
+node tests/lucky_sevens.test.js                         # Lucky Sevens' rules
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```

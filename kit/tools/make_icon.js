@@ -2,7 +2,7 @@
 /**
  * make_icon.js <glyph> <out.png> - 140x140 app tile icon in the HMI's style
  * (white line art on transparent, one accent element). Glyphs: gauge, flag,
- * engine, battery, service, doom, snake, drone, wall, ..., or any 1-3 characters (drawn as text).
+ * engine, battery, service, doom, snake, drone, wall, seven, ..., or any 1-3 characters (drawn as text).
  */
 const fs = require('fs');
 const path = require('path');
@@ -112,6 +112,15 @@ if (glyph === 'gauge') {
     c.circle(84, 88, 8, B);
     c.quad([[34, 122], [106, 122], [100, 112], [40, 112]], W);
     c.fillRect(30, 104, 6, 20, W); c.fillRect(104, 104, 6, 20, W);
+} else if (glyph === 'seven') {
+    // a slot machine's window: three reels, the red 7 in the middle one, the lever at the side
+    c.strokeRoundRect(10, 30, 104, 80, 10, 6, W);
+    c.fillRect(44, 36, 4, 68, W); c.fillRect(76, 36, 4, 68, W);
+    for (const x of [27, 95]) { c.fillRect(x - 9, 60, 18, 5, W); c.convex([[x + 4, 65], [x + 9, 65], [x - 1, 86], [x - 6, 86]], W); }
+    c.fillRect(51, 54, 22, 7, A); c.convex([[65, 61], [73, 61], [62, 88], [54, 88]], A);
+    c.line(124, 92, 124, 44, 5, W);
+    c.circle(124, 38, 8, A);
+    c.fillRect(114, 88, 12, 8, W);
 } else if (glyph === 'drone') {
     // a drone in the crosshair, a shot coming up at it
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
