@@ -39,17 +39,17 @@
     {
       "id": "lucky_sevens",
       "kind": "app",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "title": "Lucky Sevens",
-      "description": "A five reel slot machine for play credits, drawn by the GPU renderer at 60 fps: glossy symbols, reels that bounce to a stop, ten paylines, WILD, big wins with a coin fountain. iDrive controller or touch. Parked only.",
+      "description": "A five reel slot machine for play credits, drawn by the GPU renderer at 60 fps: glossy symbols, reels that bounce to a stop, ten paylines, WILD, free spins, a progressive jackpot, statistics. iDrive controller or touch. Parked only.",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "lucky_sevens@1.0.0.tgz",
-        "size": 570396,
-        "sha256": "24eec6510ab85d6f53550fc0dfeb4818fd0748ba7dacd92ce880675f088aabaf",
-        "url": "packages/lucky_sevens@1.0.0.tgz"
+        "name": "lucky_sevens@1.1.0.tgz",
+        "size": 573859,
+        "sha256": "fba1fff415d29ab48d2041b89897d7e3a7c6f2b04a1bf8f0a676e52f5e5473c9",
+        "url": "packages/lucky_sevens@1.1.0.tgz"
       },
       "uninstallable": true
     },
