@@ -1,0 +1,26 @@
+name: Publish Release
+
+# Publishes a draft release made by "Prepare Draft Release" (the same as its "Publish release" button).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v1.5.7)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          gh release view "$TAG" --json isDraft,name
+          gh release edit "$TAG" --draft=false --latest
+          gh release view "$TAG" --json isDraft,url,publishedAt
