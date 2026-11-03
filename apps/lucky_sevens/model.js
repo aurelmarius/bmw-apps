@@ -14,6 +14,17 @@
  * Wins pay left to right on a line, from the first reel: three or more of a symbol (cherries: two),
  * WILD standing in for any symbol. A line pays its best: the symbol's run or the WILDs' own run.
  *
+ * Free spins: three WILDs or more anywhere in the window (a scatter) give FREE_SPINS free spins at the
+ * bet that won them, every win paid twice; WILDs again in a free spin give FREE_SPINS more.
+ *
+ * The progressive jackpot: every paid bet adds JP_RATE of itself to a pot that starts at JP_SEED. Five
+ * sevens on a payline (sevens only, no WILD) win it: all of it at the largest bet per line, a share of
+ * it at a smaller one (bet per line / largest); what is won leaves the pot, which never drops below
+ * JP_SEED. The jackpot comes on top of the line's own pay and isn't doubled in free spins.
+ *
+ * Statistics are kept with the credits: spins, credits bet and won, the best win, the longest run of
+ * spins in a row that paid, free spin rounds, jackpots.
+ *
  * Credits are play credits, nothing else: they start at START_CREDITS, and a player who can't pay the
  * smallest bet gets START_CREDITS again (refill()).
  */
@@ -39,14 +50,17 @@ const LINES = [
 
 // pays per line, in coins, for a run of 2..5 from the first reel
 const PAYS = {
-    cherry: { 2: 2, 3: 6, 4: 18, 5: 50 },
-    lemon: { 3: 6, 4: 22, 5: 75 },
-    bell: { 3: 10, 4: 30, 5: 100 },
-    bar: { 3: 15, 4: 50, 5: 150 },
-    diamond: { 3: 25, 4: 80, 5: 300 },
-    seven: { 3: 50, 4: 200, 5: 1000 },
+    cherry: { 2: 2, 3: 5, 4: 16, 5: 45 },
+    lemon: { 3: 5, 4: 20, 5: 70 },
+    bell: { 3: 9, 4: 28, 5: 90 },
+    bar: { 3: 14, 4: 45, 5: 140 },
+    diamond: { 3: 23, 4: 75, 5: 280 },
+    seven: { 3: 46, 4: 185, 5: 900 },
     wild: { 3: 40, 4: 150, 5: 2000 },
 };
+const FREE_SPINS = 10, FREE_MULT = 2, SCATTER = 3;      // WILDs anywhere for free spins, how many, wins times
+const JP_SEED = 10000, JP_RATE = 0.01;                   // the jackpot's pot: where it starts, the share of a bet it gets
+const STATS = { spins: 0, bet: 0, won: 0, bestWin: 0, streak: 0, bestStreak: 0, freeRounds: 0, jackpots: 0, bestJackpot: 0 };
 const BIG = 15, MEGA = 50;                               // a win of this many times the bet is a big / mega win
 
 // symbols on each reel's strip (the same mix on every reel, laid out differently)
@@ -136,6 +150,12 @@ class Game {
         this.timing = TIMING[o.speed] || TIMING.normal;
         this.credits = Number.isFinite(o.credits) ? Math.max(0, Math.floor(o.credits)) : START_CREDITS;
         this.coinIx = Math.max(0, COINS.indexOf(o.coin));
+        this.jackpot = Math.max(JP_SEED, Number(o.jackpot) || 0);
+        this.stats = Object.assign({}, STATS);
+        for (const k of Object.keys(STATS)) if (o.stats && Number.isFinite(o.stats[k])) this.stats[k] = o.stats[k];
+        // free spins: left, at which coin, won so far in the round
+        this.free = { left: Math.max(0, Math.floor(Number(o.free && o.free.left) || 0)), coin: COINS.includes(o.free && o.free.coin) ? o.free.coin : COINS[0], won: Number(o.free && o.free.won) || 0, total: 0 };
+        this.free.total = this.free.left;
         this.t = 0;
         this.reels = STRIPS.map((s, i) => ({ pos: mod(Math.floor(this.rng() * L), L), stopped: true, plan: null, target: 0, i }));
         this.spinning = false;
@@ -143,38 +163,44 @@ class Game {
         this.spins = 0;
         this.events = [];
     }
-    coin() { return COINS[this.coinIx]; }
+    coin() { return this.free.left > 0 ? this.free.coin : COINS[this.coinIx]; }
     bet() { return this.coin() * LINES.length; }
-    canSpin() { return !this.spinning && this.credits >= this.bet(); }
-    /** the bet one step up / down (not while the reels spin); stays on the largest the credits pay for */
-    betUp() { if (this.spinning || this.coinIx >= COINS.length - 1) return false; this.coinIx++; return true; }
-    betDown() { if (this.spinning || this.coinIx <= 0) return false; this.coinIx--; return true; }
+    inFree() { return this.free.left > 0 || !!(this.result && this.result.free && this.spinning); }
+    canSpin() { return !this.spinning && (this.free.left > 0 || this.credits >= this.bet()); }
+    /** the bet one step up / down (not while the reels spin or in free spins); stays on the largest the credits pay for */
+    betUp() { if (this.spinning || this.free.left || this.coinIx >= COINS.length - 1) return false; this.coinIx++; return true; }
+    betDown() { if (this.spinning || this.free.left || this.coinIx <= 0) return false; this.coinIx--; return true; }
+    /** what five sevens would win now at this bet */
+    jackpotShare() { return Math.floor(this.jackpot * this.coin() / COINS[COINS.length - 1]); }
     /** largest bet the credits pay for (for the "max bet" button) */
     maxBet() {
-        if (this.spinning) return false;
+        if (this.spinning || this.free.left) return false;
         let i = COINS.length - 1;
         while (i > 0 && COINS[i] * LINES.length > this.credits) i--;
         this.coinIx = i;
         return true;
     }
     /** out of credits: start again with START_CREDITS */
-    broke() { return !this.spinning && this.credits < COINS[0] * LINES.length; }
+    broke() { return !this.spinning && !this.free.left && this.credits < COINS[0] * LINES.length; }
     refill() { if (!this.broke()) return false; this.credits = START_CREDITS; this.coinIx = 0; this.events.push({ type: 'refill' }); return true; }
 
     spin() {
         if (this.spinning) return false;
-        if (this.credits < this.bet()) {
+        const free = this.free.left > 0;
+        if (!free && this.credits < this.bet()) {
             // a bet too big for what's left: the largest one that fits
             if (this.broke()) { this.events.push({ type: 'broke' }); return false; }
             this.maxBet();
         }
-        const bet = this.bet();
-        this.credits -= bet;
+        const bet = this.bet(), coin = this.coin();
+        if (free) this.free.left--;
+        else { this.credits -= bet; this.jackpot = Math.round((this.jackpot + bet * JP_RATE) * 100) / 100; this.stats.bet += bet; }
         this.spins++;
+        this.stats.spins++;
         const stops = this.reels.map(() => Math.floor(this.rng() * L));
-        const win = windowAt(stops);
-        const wins = evaluate(win), coins = wins.reduce((a, w) => a + w.pay, 0), amount = coins * this.coin();
-        this.result = { stops, window: win, wins, win: amount, bet, level: amount >= MEGA * bet ? 'mega' : amount >= BIG * bet ? 'big' : amount > 0 ? 'win' : 'none', jackpot: wins.some((w) => w.sym === 'seven' && w.count === 5) };
+        this.result = outcome(stops, coin, free, this.jackpot);
+        this.result.bet = bet;
+        this.result.left = this.free.left;
         const T = this.timing;
         this.reels.forEach((r, i) => {
             const p0 = r.pos, total = T.first + i * T.next;      // when it should stand
@@ -225,11 +251,30 @@ class Game {
         }
         if (!all) return;
         this.spinning = false;
-        const res = this.result;
-        this.credits += res.win;
-        if (res.win > 0) this.events.push({ type: 'win', amount: res.win, level: res.level, wins: res.wins, jackpot: res.jackpot });
+        const res = this.result, st = this.stats, total = res.win + res.jackpotWin;
+        this.credits += total;
+        st.won += total;
+        st.bestWin = Math.max(st.bestWin, total);
+        st.streak = total > 0 ? st.streak + 1 : 0;
+        st.bestStreak = Math.max(st.bestStreak, st.streak);
+        if (res.jackpotWin) {
+            this.jackpot = Math.max(JP_SEED, this.jackpot - res.jackpotWin);
+            st.jackpots++; st.bestJackpot = Math.max(st.bestJackpot, res.jackpotWin);
+            this.events.push({ type: 'jackpot', amount: res.jackpotWin });
+        }
+        if (res.free) this.free.won += total;
+        if (total > 0) this.events.push({ type: 'win', amount: total, level: res.level, wins: res.wins, jackpot: !!res.jackpotWin, free: res.free });
+        if (res.award) {
+            // a new round (its bet stays), or more spins in this one
+            const again = res.free;
+            if (!again) { this.free.coin = COINS[this.coinIx]; this.free.won = 0; this.free.total = 0; st.freeRounds++; }
+            this.free.left += res.award; this.free.total += res.award;
+            this.events.push({ type: 'free', award: res.award, again, scatter: res.scatter });
+        } else if (res.free && this.free.left === 0) this.events.push({ type: 'freeEnd', won: this.free.won, spins: this.free.total });
         this.events.push({ type: 'done' });
     }
+    /** what to keep between drives */
+    toJSON() { return { credits: this.credits, coin: COINS[this.coinIx], jackpot: this.jackpot, stats: this.stats, free: { left: this.free.left, coin: this.free.coin, won: this.free.won } }; }
 
     /** symbols per ms reel i runs at now (for the motion blur) */
     speed(i) { const r = this.reels[i]; return r.stopped ? 0 : planSpeed(r.plan, this.t); }
@@ -239,6 +284,23 @@ class Game {
 }
 
 function windowAt(stops) { return stops.map((s, i) => [0, 1, 2].map((k) => STRIPS[i][mod(s + k, L)])); }
+
+/** the WILDs in a window: [reel, row] of each */
+function scatters(win) { const out = []; win.forEach((col, i) => col.forEach((s, r) => { if (s === 'wild') out.push([i, r]); })); return out; }
+/** lines with five sevens and no WILD: the jackpot */
+const jackpotLine = (win, w) => w.count === 5 && LINES[w.line].every((r, i) => win[i][r] === 'seven');
+
+/** what a spin on these stops pays: line wins (twice in free spins), the jackpot, free spins */
+function outcome(stops, coin, free, pot) {
+    const win = windowAt(stops), wins = evaluate(win), sc = scatters(win);
+    const amount = wins.reduce((a, w) => a + w.pay, 0) * coin * (free ? FREE_MULT : 1);
+    const jp = wins.some((w) => jackpotLine(win, w)) ? Math.floor(pot * coin / COINS[COINS.length - 1]) : 0;
+    const bet = coin * LINES.length, total = amount + jp;
+    return {
+        stops, window: win, wins, win: amount, jackpotWin: jp, free, award: sc.length >= SCATTER ? FREE_SPINS : 0, scatter: sc,
+        level: total >= MEGA * bet ? 'mega' : total >= BIG * bet ? 'big' : total > 0 ? 'win' : 'none',
+    };
+}
 
 function loadState(file, log) {
     try { const b = JSON.parse(require('fs').readFileSync(file, 'utf8')); return b && typeof b === 'object' ? b : {}; } catch (e) {
@@ -254,5 +316,6 @@ function saveState(file, st) {
 
 module.exports = {
     Game, DT, REELS, ROWS, LINES, PAYS, COINS, SYMBOLS, STRIPS, START_CREDITS, BIG, MEGA, TIMING,
-    evaluate, windowAt, loadState, saveState,
+    FREE_SPINS, FREE_MULT, SCATTER, JP_SEED, JP_RATE,
+    evaluate, windowAt, scatters, outcome, loadState, saveState,
 };

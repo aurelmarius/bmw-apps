@@ -93,14 +93,19 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 * **The machine**: a lacquered cabinet in a gold moulding with marquee bulbs, reels behind curved glass in a chrome bezel, glossy symbols lit from the top left (an extruded 7 with a gold rim, cherries, lemon, bell, BAR, a cut diamond, the WILD star), a control panel with LCD read-outs and a domed SPIN button.
 * **Reels that feel real**: each winds up, runs with a motion blur, and stops one after the other with a small bounce; the bulbs chase round the machine while they run.
 * **Ten paylines**, paid left to right from the first reel (cherries from two), **WILD** stands in for any symbol. A win lights its lines one by one, frames the symbols that pay (the higher ones in light rays), counts up into the credits; a big win throws a fountain of coins over the machine.
+* **Free spins**: three WILDs anywhere in the window give **10 free spins** at the bet that won them, every win paid **x2**; WILDs again in a free spin give 10 more. They're announced, run by themselves, and the round ends with what it won.
+* **Progressive jackpot**: every paid bet adds 1% to a pot (starting at 10 000) shown on the cabinet. **Five sevens on a line** (no WILD) win it: all of it at 50 per line, a share at a smaller bet. It comes on top of the line's own pay.
+* **Statistics** (STATS key, or push the controller down): spins, credits bet and won, paid back %, best win, longest winning streak, free spin rounds, jackpots won, best jackpot, the jackpot at your bet.
 * **Bet** 1 to 50 per line, **max bet**, **autoplay**; press while the reels run to stop them at once.
-* **iDrive controller**: press = spin, turn = bet, push up = autoplay, push right = max bet. **Touchscreen**: the panel's keys, or tap the reels to spin.
-* **Play credits only**: nothing to buy, nothing to win. Out of credits, the SPIN button gives 1 000 new ones. The machine pays back about 96 of every 100 credits bet. Credits, bet and best win are kept between drives.
+* **iDrive controller**: press = spin, turn = bet, push up = autoplay, push right = max bet, push down = statistics. **Touchscreen**: the panel's keys, or tap the reels to spin.
+* **Play credits only**: nothing to buy, nothing to win. Out of credits, the SPIN button gives 1 000 new ones. The machine pays back about 96 of every 100 credits bet, free spins and jackpot included. Credits, bet, the jackpot, free spins left and the statistics are kept between drives.
 * **Settings**: cabinet colour (ruby / sapphire / emerald / onyx), reel speed (normal / fast).
 * **Parked only**: no spin while the car moves (above 3 km/h), autoplay goes off.
 
 ![Lucky Sevens - the reels running](docs/screenshots/lucky_sevens-spin.png)
 ![Lucky Sevens - a win on several lines](docs/screenshots/lucky_sevens-win.png)
+![Lucky Sevens - three WILDs: 10 free spins](docs/screenshots/lucky_sevens-free.png)
+![Lucky Sevens - statistics](docs/screenshots/lucky_sevens-stats.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`), seeded spins.</sub>
 
 ---
@@ -123,7 +128,7 @@ The games run smoothest with the **mgu-render** GPU renderer, installed from the
 1. Download `engine_care@<version>.tgz`, `hybrid_cost@<version>.tgz`, `snake@<version>.tgz`, `track_defender@<version>.tgz`, `pit_wall@<version>.tgz` and `lucky_sevens@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz lucky_sevens@1.0.0.tgz
+   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz snake@1.0.0.tgz track_defender@1.0.0.tgz pit_wall@1.0.0.tgz lucky_sevens@1.1.0.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -135,7 +140,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact snake@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact track_defender@1.0.0.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact pit_wall@1.0.0.tgz --yes
-/var/opt/mgu-deploy/mgu-deploy.sh install --artifact lucky_sevens@1.0.0.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact lucky_sevens@1.1.0.tgz --yes
 ```
 
 ---

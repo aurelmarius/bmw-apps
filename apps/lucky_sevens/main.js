@@ -12,16 +12,19 @@
  * Steering:
  *   iDrive controller (held by the app on screen): press = spin (while the reels run: stop them now;
  *     while a win counts up: count it at once), turn = bet down / up, push up = autoplay on / off,
- *     push right = max bet, push left = leave, push down = let go of the controller (over to the bar
- *     and the header).
+ *     push right = max bet, push left = leave, push down = the statistics. On the statistics: press or
+ *     push down closes them, a turn lets go of the controller (over to the bar and the header).
  *   touchscreen (where the kit runs the screen): the panel's keys and the SPIN button; a tap on the
  *     reels spins (or stops them).
- *   bar buttons "Spin", "Bet +" (round to the smallest after the largest) and "Auto".
+ *   bar buttons "Spin", "Bet +" (round to the smallest after the largest), "Auto" and "Stats".
+ *
+ * Free spins (three WILDs anywhere) are announced, then run by themselves one after the other, and the
+ * round ends with what it won. The jackpot's plate on the cabinet shows the pot growing.
  *
  * The rules are in model.js (tests/lucky_sevens.test.js), the drawing of things in art.js. Spinning
  * stops when the screen goes, a sheet (Settings) opens over it or the car drives off (kit/parked.js):
  * reels already running finish their spin, autoplay goes off, and no new spin starts while moving.
- * Credits, the bet and the best win are kept in a file between drives.
+ * Credits, the bet, the jackpot's pot, free spins left and the statistics are kept in a file between drives.
  */
 const path = require('path');
 const mgu = require('./kit/mgu');
@@ -37,6 +40,8 @@ const STATE_FILE = 'lucky_sevens.json';
 const PARKED_MS = 500;
 const LINE_MS = 1100;                  // each winning line shown this long, in turn
 const AUTO_WAIT = { none: 450, win: 1300, big: 3200, mega: 4500 };
+const FREE_WAIT = 700;                 // between free spins (after the win on show)
+const ANNOUNCE_MS = 2600;
 const TITLE = 'LUCKY SEVENS';
 const GOLD = '#ffd36e', PINK = '#ff8ac0';
 
@@ -53,9 +58,13 @@ mgu.run({
         const cabinet = () => String(settings.get('cabinet') || 'ruby');
         const reelSpeed = () => String(settings.get('reelSpeed') || 'normal');
 
-        let game = new M.Game({ credits: saved.credits, coin: saved.coin, speed: reelSpeed() });
-        let bestWin = Number(saved.bestWin) || 0;
-        let auto = false, autoAt = 0;
+        // (1.0.0 kept bestWin and spins on their own)
+        if (!saved.stats && (saved.bestWin || saved.spins)) saved.stats = { bestWin: Number(saved.bestWin) || 0, spins: Number(saved.spins) || 0 };
+        let game = new M.Game(Object.assign({}, saved, { speed: reelSpeed() }));
+        let auto = false, autoAt = 0, stats = false;
+        // announcements in turn over the window: free spins won, a round's total ({ kind, at, ... })
+        let announce = [];
+        let jpShown = game.jackpot;    // the pot's number as shown, running after the real one
         let visible = false, menu = false;
         let toast = null, toastUntil = 0;
         // the win on show: its lines, when it began, how far it has counted
@@ -69,7 +78,7 @@ mgu.run({
         function showToast(msg, ms) { toast = msg; toastUntil = Date.now() + (ms || 2500); }
         const own = () => !!(display && display.own && display.own());
         function save() {
-            try { M.saveState(stateFile, { credits: game.credits, coin: game.coin(), bestWin, spins: (Number(saved.spins) || 0) + game.spins }); } catch (e) { log.warn('lucky_sevens: not saved: ' + e.message); }
+            try { M.saveState(stateFile, game.toJSON()); } catch (e) { log.warn('lucky_sevens: not saved: ' + e.message); }
         }
         function syncGrab() { if (ctx.controller) ctx.controller.grab(visible && !menu); }
         const press = (k) => { pressed = k; pressedAt = Date.now(); };
@@ -77,6 +86,8 @@ mgu.run({
         /* ---------- actions ---------- */
         function spin() {
             menu = false; syncGrab();
+            if (stats) { stats = false; return; }
+            if (announce.length && announce[0].at <= Date.now()) { announce.shift(); return; }   // skip it
             if (game.spinning) { game.slam(); return; }
             if (show && shown < show.amount) { shown = show.amount; return; }        // count it at once
             if (parked.moving()) { auto = false; showToast('Parked only: the reels turn when the car stands still'); return; }
@@ -90,6 +101,7 @@ mgu.run({
             if (d > 0 ? game.betUp() : game.betDown()) save();
         }
         function maxBet() { if (!game.spinning) { press('max'); game.maxBet(); save(); } }
+        function toggleStats() { press('stats'); stats = !stats; menu = false; syncGrab(); }
         function toggleAuto() {
             if (!auto && parked.moving()) { showToast('Parked only: the reels turn when the car stands still'); return; }
             auto = !auto;
@@ -105,6 +117,7 @@ mgu.run({
             save();
         });
         ui.onClick('BTN_AUTO', toggleAuto);
+        ui.onClick('BTN_STATS', toggleStats);
 
         // FrontCCU while held: knob counter, press, push (as display.js reads them)
         let ccu = null;
@@ -118,11 +131,17 @@ mgu.run({
             const down = (x) => x === 1 || x === 2;
             const pr = down(pb) && !(L && down(L.pb));
             const tilt = TILT[df] && !(L && TILT[L.df] === TILT[df]) ? TILT[df] : null;
+            if (stats) {
+                if (pr || tilt === 'S') { stats = false; return; }
+                if (d) { stats = false; menu = true; syncGrab(); }             // over to the bar and the header
+                if (tilt === 'W') Promise.resolve(ui.close('MAIN')).catch((e) => log.warn('leave: ' + e));
+                return;
+            }
             if (pr) spin();
             if (d) bet(d);
             if (tilt === 'N') toggleAuto();
             else if (tilt === 'E') maxBet();
-            else if (tilt === 'W' && !game.spinning) { auto = false; Promise.resolve(ui.close('MAIN')).catch((e) => log.warn('leave: ' + e)); } else if (tilt === 'S') { auto = false; menu = true; syncGrab(); }
+            else if (tilt === 'W' && !game.spinning) { auto = false; Promise.resolve(ui.close('MAIN')).catch((e) => log.warn('leave: ' + e)); } else if (tilt === 'S') toggleStats();
         });
         // the finger: the keys, the SPIN button, the reels
         const inRect = (q, x, y) => x >= q.x && x < q.x + q.w && y >= q.y && y < q.y + q.h;
@@ -134,11 +153,13 @@ mgu.run({
             touch0 = null;
             if (!tap) return;
             const B = A.BUTTONS;
+            if (stats && !inRect(B.stats, x, y)) { stats = false; return; }
             if (Math.hypot(x - A.SPIN_BTN.x, y - A.SPIN_BTN.y) < A.SPIN_BTN.r + 12) spin();
             else if (inRect(B.betDown, x, y)) bet(-1);
             else if (inRect(B.betUp, x, y)) bet(1);
             else if (inRect(B.max, x, y)) maxBet();
             else if (inRect(B.auto, x, y)) toggleAuto();
+            else if (inRect(B.stats, x, y)) toggleStats();
             else if (inRect(A.WIN, x, y)) spin();
         });
 
@@ -152,9 +173,9 @@ mgu.run({
         syncGrab();
         settings.onChange((k) => {
             if (k === 'reelSpeed' && !game.spinning) {
-                const g = new M.Game({ credits: game.credits, coin: game.coin(), speed: reelSpeed() });
+                const g = new M.Game(Object.assign(JSON.parse(JSON.stringify(game.toJSON())), { speed: reelSpeed() }));
                 g.reels.forEach((r, i) => { r.pos = game.reels[i].pos; });
-                g.spins = game.spins;
+                g.result = game.result;
                 game = g;
             }
         });
@@ -170,7 +191,14 @@ mgu.run({
             lastT = now;
             while (acc >= M.DT) { game.step(M.DT); acc -= M.DT; }
             for (const ev of game.events.splice(0)) effect(ev, now);
-            if (auto && !game.spinning && now >= autoAt && (!show || shown >= show.amount)) {
+            while (announce.length && now - announce[0].at > ANNOUNCE_MS) announce.shift();
+            const idle = !game.spinning && now >= autoAt && (!show || shown >= show.amount) && !announce.length && !stats;
+            // free spins run by themselves (on show, the car standing, no sheet over the screen)
+            if (game.free.left > 0 && idle && visible && !(display && display.sheet)) {
+                if (!parked.moving()) spin();
+                return;
+            }
+            if (auto && idle) {
                 if (game.credits < game.bet() && !game.broke()) game.maxBet();
                 if (game.broke() || parked.moving()) { auto = false; if (game.broke()) showToast('Out of credits: autoplay off'); } else spin();
             }
@@ -184,13 +212,19 @@ mgu.run({
                 const mult = ev.amount / game.result.bet;
                 show = { amount: ev.amount, level: ev.level, wins: ev.wins, at: now, countMs: Math.min(5000, 500 + mult * 90), jackpot: ev.jackpot };
                 shown = 0;
-                if (ev.amount > bestWin) bestWin = ev.amount;
+                show.free = ev.free;
                 if (ev.level === 'big' || ev.level === 'mega') fountain(now, ev.level === 'mega' ? 70 : 36);
+            } else if (ev.type === 'free' || ev.type === 'freeEnd') {
+                // after the win on show has counted
+                const after = show && show.at === now ? show.countMs + 500 : 250;
+                const last = announce.length ? announce[announce.length - 1].at + ANNOUNCE_MS : 0;
+                announce.push(Object.assign({ kind: ev.type, at: Math.max(now + after, last) }, ev));
+                if (ev.type === 'free') fountain(now + after, 24);
             } else if (ev.type === 'done') {
                 const r = game.result;
-                autoAt = now + AUTO_WAIT[r.level] + (r.win ? Math.min(5000, 500 + r.win / r.bet * 90) : 0);
+                autoAt = now + (game.free.left > 0 ? FREE_WAIT : AUTO_WAIT[r.level]) + (r.win ? Math.min(5000, 500 + (r.win + r.jackpotWin) / r.bet * 90) : 0);
                 save();
-                log.info('lucky_sevens: bet ' + r.bet + ', win ' + r.win + ' (' + r.level + '), credits ' + game.credits);
+                log.info('lucky_sevens: bet ' + r.bet + (r.free ? ' (free)' : '') + ', win ' + r.win + (r.jackpotWin ? ' + jackpot ' + r.jackpotWin : '') + ' (' + r.level + '), credits ' + game.credits);
             }
         }
         function fountain(now, n) {
@@ -245,6 +279,9 @@ mgu.run({
                 }
                 A.drawDrumShade(cv, i);
             }
+            // the WILDs that won free spins, framed while it's announced
+            const an = announce[0];
+            if (an && an.kind === 'free' && an.at <= now) for (const [i, k] of an.scatter) A.drawCellFrame(cv, i, k, '#ff3d7f', 0.75 + 0.25 * Math.sin(now / 90));
             if (cells) {
                 for (const c of cells.cells) { const [i, k] = c.split(',').map(Number); A.drawCellFrame(cv, i, k, GOLD, 0.75 + 0.25 * Math.sin(now / 120)); }
                 for (const w of cells.lines) A.drawPayline(cv, M.LINES[w.line], w.line, 1);
@@ -265,7 +302,45 @@ mgu.run({
             A.moulding(cv, bx, y, bw, h, h / 2, 6, A.GOLD);
             cv.card(bx + 6, y + 6, bw - 12, h - 12, (h - 12) / 2, [[0, '#8a0c30'], [0.5, '#5a0620'], [1, '#2a0310']]);
             cv.roundRect(bx + 14, y + 8, bw - 28, h * 0.26, h * 0.13, withAlpha('#ffffff', 0.12));
-            A.outlined(cv, 'WIN  ' + fmt(shown), bx + bw / 2, y + h / 2 + 12, 34 * (0.7 + 0.3 * pop), '#ffe9a8', '#6a0018', 2, { shadow: false, literal: true });
+            A.outlined(cv, 'WIN  ' + fmt(shown) + (show.free ? '  x' + M.FREE_MULT : ''), bx + bw / 2, y + h / 2 + 12, 34 * (0.7 + 0.3 * pop), '#ffe9a8', '#6a0018', 2, { shadow: false, literal: true });
+        }
+        /** free spins: the lit frame and the ribbon; the announcements */
+        function drawFree(cv, now) {
+            const an = announce[0];
+            if (game.inFree() || (an && an.kind === 'free')) A.drawFreeFrame(cv, now);
+            const left = game.free.left, n = game.free.total;
+            if (game.inFree() && !(show && !game.spinning) && !(an && an.at <= now)) {
+                const done = n - left;
+                A.drawRibbon(cv, 'FREE SPIN ' + Math.max(1, done) + ' OF ' + n + '  ·  WINS x' + M.FREE_MULT, '#ffe9a8', now);
+            }
+            if (!an || an.at > now) return;
+            const t = now - an.at, a = t < 200 ? t / 200 : t > ANNOUNCE_MS - 300 ? (ANNOUNCE_MS - t) / 300 : 1;
+            if (an.kind === 'free') A.drawAnnounce(cv, an.again ? '+' + an.award + ' FREE SPINS' : an.award + ' FREE SPINS', 'EVERY WIN PAID x' + M.FREE_MULT, '#ff8ac0', '#7a1050', a, now);
+            else A.drawAnnounce(cv, 'FREE SPINS WON', fmt(an.won) + ' CREDITS', GOLD, '#a8701a', a, now);
+        }
+        function drawJackpot(cv, now, dt) {
+            // the number runs after the pot (it jumps down at once when the jackpot is won)
+            jpShown = game.jackpot < jpShown ? game.jackpot : jpShown + (game.jackpot - jpShown) * Math.min(1, dt / 400);
+            const P = A.JP_PLATE, x = P.x + P.w - 24, y = P.y + 37;
+            A.glow(cv, x - 70, y - 11, 60, '#ff3d7f', 0.12 + 0.06 * Math.sin(now / 400));
+            cv.text(fmt(jpShown), x, y, 30, '#ff5a8a', { font: 'num', align: 'right', literal: true });
+        }
+        function drawStatsPage(cv) {
+            if (!stats) return;
+            const st = game.stats, ret = st.bet ? Math.round(st.won / st.bet * 1000) / 10 : 0;
+            A.drawStats(cv, [
+                ['SPINS', fmt(st.spins)],
+                ['CREDITS BET', fmt(st.bet)],
+                ['CREDITS WON', fmt(st.won)],
+                ['PAID BACK', st.bet ? ret.toFixed(1) + ' %' : '-', ret >= 100 ? '#5ff0a6' : '#ffffff'],
+                ['BEST WIN', fmt(st.bestWin), GOLD],
+            ], [
+                ['LONGEST WINNING STREAK', fmt(st.bestStreak), GOLD],
+                ['FREE SPIN ROUNDS', fmt(st.freeRounds)],
+                ['JACKPOTS WON', fmt(st.jackpots)],
+                ['BEST JACKPOT', st.bestJackpot ? fmt(st.bestJackpot) : '-', '#ff5a8a'],
+                ['JACKPOT AT YOUR BET', fmt(game.jackpotShare()), '#ff5a8a'],
+            ], 'Five sevens on a line win the jackpot (all of it at 50 per line)  ·  three WILDs anywhere: ' + M.FREE_SPINS + ' free spins');
         }
         function drawBigWin(cv, now) {
             if (!show || (show.level !== 'big' && show.level !== 'mega') || game.spinning) return;
@@ -304,7 +379,8 @@ mgu.run({
                 cv.text(v, q.x + q.w - 14, q.y + 44, 38, q.color, { font: 'num', align: 'right', literal: true });
             };
             lcd(A.LCD.credit, fmt(game.credits - counting));
-            lcd(A.LCD.bet, fmt(game.bet()));
+            if (game.inFree()) lcd(A.LCD.bet, 'FREE');
+            else lcd(A.LCD.bet, fmt(game.bet()));
             lcd(A.LCD.win, show && !game.spinning ? fmt(shown) : '0');
             const P = A.PANEL;
             // the line on show and what it pays, else the lines and the bet per line
@@ -313,14 +389,14 @@ mgu.run({
                 const w = cells.lines[0];
                 cv.text('LINE ' + (w.line + 1) + '  ·  ' + w.count + ' x ' + w.sym.toUpperCase() + '  ·  ' + fmt(w.pay * game.result.bet / M.LINES.length), P.x + 28, P.y + 220, 15, A.LINE_COLOURS[w.line % A.LINE_COLOURS.length], { font: 'bold', spacing: 1.2, literal: true });
             } else cv.text(M.LINES.length + ' LINES  ·  ' + game.coin() + ' PER LINE', P.x + 28, P.y + 220, 15, withAlpha('#ffffff', 0.55), { font: 'bold', spacing: 1.5, literal: true });
-            if (!(cells && cells.lines.length === 1)) cv.text('BEST WIN  ' + fmt(bestWin), P.x + P.w - 28, P.y + 220, 15, withAlpha(GOLD, 0.8), { font: 'bold', align: 'right', spacing: 1.5, literal: true });
+            if (!(cells && cells.lines.length === 1)) cv.text('BEST WIN  ' + fmt(game.stats.bestWin), P.x + P.w - 28, P.y + 220, 15, withAlpha(GOLD, 0.8), { font: 'bold', align: 'right', spacing: 1.5, literal: true });
             const down = (k) => pressed === k && now - pressedAt < 140;
-            for (const k of ['betDown', 'betUp', 'max', 'auto']) {
+            for (const k of ['betDown', 'betUp', 'max', 'auto', 'stats']) {
                 const q = A.BUTTONS[k];
-                const st = down(k) ? 'down' : k === 'auto' && auto ? 'lit' : 'up';
+                const st = down(k) ? 'down' : (k === 'auto' && auto) || (k === 'stats' && stats) ? 'lit' : 'up';
                 cv.blit(A.keyLayer(k, st), q.x, q.y);
             }
-            const can = !parked.moving() && (game.spinning || game.credits >= M.COINS[0] * M.LINES.length || game.broke());
+            const can = !parked.moving() && (game.spinning || game.free.left > 0 || game.credits >= M.COINS[0] * M.LINES.length || game.broke());
             const S = A.SPIN_BTN, ready = can && !game.spinning;
             if (ready) A.glow(cv, S.x, S.y, S.r * 1.6, '#ff2a4a', 0.35 + 0.15 * Math.sin(now / 300));
             cv.blit(A.spinLayer(down('spin') ? 'down' : can ? 'on' : 'off'), S.x - S.r - 2, S.y - S.r - 2);
@@ -329,9 +405,9 @@ mgu.run({
         function drawHint(cv, touch) {
             const P = A.PANEL;
             const lines = touch
-                ? ['Press: spin  ·  turn: bet', 'Push up: auto  ·  right: max bet']
+                ? ['Press: spin  ·  turn: bet', 'Push up: auto  ·  right: max bet', 'Push down: statistics']
                 : ['Bar: Spin  ·  Bet +  ·  Auto', 'Smooth only with mgu-render'];
-            lines.forEach((l, i) => cv.text(l, P.x + 24, P.y + 412 + i * 20, 14, withAlpha('#ffffff', 0.45), { font: 'label' }));
+            lines.forEach((l, i) => cv.text(l, P.x + 24, P.y + 418 + i * 17, 13, withAlpha('#ffffff', 0.45), { font: 'label' }));
         }
         function drawParked(cv) {
             if (!parked.moving() || game.spinning) return;
@@ -356,12 +432,15 @@ mgu.run({
             drawReels(cv, now);
             for (const b of A.bandLayers(col, TITLE)) cv.blit(b.L, 0, b.y);
             drawBulbs(cv, now);
+            drawJackpot(cv, now, dt);
             drawBanner(cv, now);
+            drawCoins(cv, dt, now);
+            drawFree(cv, now);
             drawParked(cv);
             drawPanel(cv, now);
             drawHint(cv, touch);
             drawBigWin(cv, now);
-            drawCoins(cv, dt, now);
+            drawStatsPage(cv);
             G.frame(cv, t, ['Lucky Sevens'], 0, [toast && now < toastUntil && { text: toast, color: 'accent' }]);
             return ui.image('MAIN_GFX', cv);
         }

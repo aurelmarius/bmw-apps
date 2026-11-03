@@ -4,12 +4,40 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Game, DT, REELS, LINES, PAYS, COINS, SYMBOLS, STRIPS, START_CREDITS, TIMING, evaluate, windowAt, loadState, saveState } = require('../apps/lucky_sevens/model');
+const { Game, DT, REELS, LINES, PAYS, COINS, SYMBOLS, STRIPS, START_CREDITS, TIMING, FREE_SPINS, FREE_MULT, JP_SEED, JP_RATE, evaluate, windowAt, scatters, outcome, loadState, saveState } = require('../apps/lucky_sevens/model');
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 const run = (g, ms) => { for (let t = 0; t < ms; t += DT) g.step(DT); };
 const seeded = (s) => () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+const L = STRIPS[0].length;
+/** an rng that picks these stops for the next spins (5 per spin), after the 5 starting positions */
+const rigged = (spins) => { const q = [0, 0, 0, 0, 0].concat(...spins).map((x) => (x + 0.5) / L); const fb = seeded(77); return () => (q.length ? q.shift() : fb()); };
+/** stops that show `sym` on row `row` of every reel (and, for others, none of `avoid` in the window) */
+function stopsFor(sym, row, avoid) {
+    return STRIPS.map((s) => {
+        for (let k = 0; k < L; k++) {
+            const w = [0, 1, 2].map((r) => s[(k + r) % L]);
+            if (w[row] === sym && !(avoid || []).some((a) => w.includes(a) && a !== sym)) return k;
+        }
+        throw new Error('no stop');
+    });
+}
+/** stops with no WILD in the window, paying nothing */
+function blank() {
+    for (let t = 0; ; t++) {
+        const st = [0, 1, 2, 3, 4].map((i) => (t * 7 + i * 13) % L);
+        const o = outcome(st, 1, false, 0);
+        if (!o.win && !o.scatter.length) return st;
+    }
+}
+/** stops with exactly three WILDs (reels 1, 3, 5) */
+function threeWilds() {
+    const wildAt = (i) => STRIPS[i].indexOf('wild');
+    const noWild = (i) => { for (let k = 0; k < L; k++) if (![0, 1, 2].some((r) => STRIPS[i][(k + r) % L] === 'wild')) return k; return 0; };
+    return [wildAt(0), noWild(1), wildAt(2), noWild(3), wildAt(4)];
+}
+const settle = (g) => { while (g.spinning) g.step(DT); return g.events.splice(0); };
 /** a window with `fill` everywhere, then the given cells: [reel, row, symbol] */
 const grid = (fill, cells) => { const w = Array.from({ length: REELS }, () => [fill, fill, fill]); for (const [i, r, s] of cells || []) w[i][r] = s; return w; };
 /** a filler that pays nothing next to anything: every reel a different symbol */
@@ -164,25 +192,130 @@ test('out of credits: no spin, a refill gives the starting credits', () => {
     assert.ok(!g.refill());
 });
 
-test('the machine pays back about 96 of 100 credits bet', () => {
-    // the stops are random, so the window: the pay of 300 000 random windows
-    const rnd = seeded(11), L = STRIPS[0].length, N = 300000;
-    let paid = 0, hits = 0;
+test('the machine pays back about 96 of 100 credits bet, free spins included', () => {
+    // the stops are random, so the window: the pay of 300 000 random windows, and how often free spins come
+    const rnd = seeded(11), N = 300000;
+    let paid = 0, hits = 0, trig = 0;
     for (let i = 0; i < N; i++) {
-        const c = evaluate(windowAt([0, 1, 2, 3, 4].map(() => Math.floor(rnd() * L)))).reduce((a, w) => a + w.pay, 0);
-        paid += c; if (c) hits++;
+        const o = outcome([0, 1, 2, 3, 4].map(() => Math.floor(rnd() * L)), 1, false, 0);
+        paid += o.win; if (o.win) hits++; if (o.award) trig++;
     }
-    const rtp = paid / (N * LINES.length);
-    assert.ok(rtp > 0.88 && rtp < 1.04, 'return ' + rtp.toFixed(3));
+    const base = paid / (N * LINES.length), p = trig / N;
+    const rtp = base * (1 + p * FREE_SPINS / (1 - p * FREE_SPINS) * FREE_MULT);
+    assert.ok(rtp > 0.88 && rtp < 1.03, 'return ' + rtp.toFixed(3));
     assert.ok(hits / N > 0.4 && hits / N < 0.65, 'hit rate ' + (hits / N).toFixed(3));
+    assert.ok(1 / p > 150 && 1 / p < 400, 'free spins 1 in ' + (1 / p).toFixed(0));
+});
+
+test('three WILDs anywhere: ten free spins at the bet that won them, wins paid twice', () => {
+    const blk = blank(), cherries = stopsFor('cherry', 1, ['wild']);
+    const g = new Game({ credits: 1000, coin: 5, rng: rigged([threeWilds(), cherries, blk]) });
+    g.spin();
+    assert.strictEqual(g.result.scatter.length, 3);
+    const ev = settle(g);
+    assert.ok(ev.some((e) => e.type === 'free' && e.award === FREE_SPINS && !e.again));
+    assert.strictEqual(g.free.left, FREE_SPINS);
+    assert.strictEqual(g.stats.freeRounds, 1);
+    assert.ok(!g.betUp() && !g.betDown() && !g.maxBet());      // the bet stays
+    const before = g.credits;
+    g.spin();
+    assert.strictEqual(g.credits, before);                       // nothing paid
+    assert.strictEqual(g.free.left, FREE_SPINS - 1);
+    assert.ok(g.result.free);
+    settle(g);
+    const single = outcome(cherries, 5, false, 0).win;
+    assert.ok(single > 0);
+    assert.strictEqual(g.credits, before + single * FREE_MULT);
+    assert.strictEqual(g.free.won, single * FREE_MULT);
+});
+
+test('free spins: WILDs again give more; the round ends with what it won', () => {
+    const blk = blank();
+    const g = new Game({ credits: 1000, rng: rigged([threeWilds(), threeWilds(), ...Array(30).fill(blk)]) });
+    g.spin(); settle(g);
+    g.spin(); const ev = settle(g);
+    assert.ok(ev.some((e) => e.type === 'free' && e.again));
+    assert.strictEqual(g.free.left, 2 * FREE_SPINS - 1);
+    assert.strictEqual(g.free.total, 2 * FREE_SPINS);
+    assert.strictEqual(g.stats.freeRounds, 1);
+    let end = null;
+    for (let i = 0; i < 30 && !end; i++) { assert.ok(g.spin()); end = settle(g).find((e) => e.type === 'freeEnd'); }
+    assert.ok(end, 'no end');
+    assert.strictEqual(end.spins, 2 * FREE_SPINS);
+    assert.strictEqual(g.free.left, 0);
+    assert.strictEqual(g.credits, 1000 - 10 + outcome(threeWilds(), 1, false, 0).win + end.won);   // one paid spin at the smallest bet
+});
+
+test('the jackpot grows with every paid bet, not with free spins', () => {
+    const g = new Game({ credits: 100000, coin: 50, rng: rigged([blank(), threeWilds(), blank()]) });
+    assert.strictEqual(g.jackpot, JP_SEED);
+    g.spin(); settle(g);
+    assert.strictEqual(g.jackpot, JP_SEED + 500 * JP_RATE);
+    g.spin(); settle(g);
+    const pot = g.jackpot;
+    g.spin(); settle(g);                                         // a free spin
+    assert.strictEqual(g.jackpot, pot);
+});
+
+test('five sevens (no WILD) win the jackpot: all of it at 50 per line, a share below', () => {
+    const sevens = stopsFor('seven', 1, ['wild']);
+    const o = outcome(sevens, 50, false, 20000);
+    assert.strictEqual(o.jackpotWin, 20000);
+    assert.strictEqual(outcome(sevens, 5, false, 20000).jackpotWin, 2000);
+    assert.strictEqual(o.level, 'mega');
+    const g = new Game({ credits: 1000, coin: 50, jackpot: 30000, rng: rigged([sevens]) });
+    g.spin();
+    const pot = g.jackpot, line = g.result.win;
+    const ev = settle(g);
+    assert.ok(ev.some((e) => e.type === 'jackpot' && e.amount === Math.floor(pot)));
+    assert.strictEqual(g.credits, 1000 - 500 + line + Math.floor(pot));
+    assert.strictEqual(g.jackpot, JP_SEED);                      // back to the seed
+    assert.strictEqual(g.stats.jackpots, 1);
+    // a smaller bet takes its share; the pot keeps the rest
+    const h = new Game({ credits: 1000, coin: 5, jackpot: 30000, rng: rigged([sevens]) });
+    h.spin(); settle(h);
+    assert.ok(Math.abs(h.jackpot - (30000 + 0.5 - Math.floor(30000.5 / 10))) < 1e-6);
+    // a WILD among the sevens pays the line, not the jackpot
+    const w = windowAt(sevens).map((c) => c.slice());
+    w[2][1] = 'wild';
+    assert.ok(evaluate(w).some((x) => x.sym === 'seven' && x.count === 5));
+});
+
+test('statistics: spins, bet, won, best win, the longest run of paying spins', () => {
+    const pay = stopsFor('cherry', 1, ['wild']), blk = blank();
+    const g = new Game({ credits: 1000, rng: rigged([pay, pay, blk, pay, pay, pay, blk]) });
+    for (let i = 0; i < 7; i++) { g.spin(); settle(g); }
+    const st = g.stats, w = outcome(pay, 1, false, 0).win;
+    assert.strictEqual(st.spins, 7);
+    assert.strictEqual(st.bet, 70);
+    assert.strictEqual(st.won, 5 * w);
+    assert.strictEqual(st.bestWin, w);
+    assert.strictEqual(st.bestStreak, 3);
+    assert.strictEqual(st.streak, 0);
+    // kept between drives
+    const h = new Game(JSON.parse(JSON.stringify(g.toJSON())));
+    assert.deepStrictEqual(h.stats, st);
+    assert.strictEqual(h.credits, g.credits);
+    assert.strictEqual(h.jackpot, g.jackpot);
+});
+
+test('free spins left are kept between drives', () => {
+    const g = new Game({ credits: 1000, coin: 2, rng: rigged([threeWilds()]) });
+    g.spin(); settle(g);
+    const h = new Game(JSON.parse(JSON.stringify(g.toJSON())));
+    assert.strictEqual(h.free.left, FREE_SPINS);
+    assert.strictEqual(h.coin(), 2);
+    assert.ok(h.canSpin());
 });
 
 test('many spins in a row: never stuck, credits add up', () => {
     const g = new Game({ rng: seeded(21), credits: 100000 });
     let bets = 0, wins = 0;
     for (let i = 0; i < 300; i++) {
+        const free = g.free.left > 0;
         assert.ok(g.spin(), 'spin ' + i);
-        bets += g.result.bet; wins += g.result.win;
+        if (!free) bets += g.result.bet;
+        wins += g.result.win + g.result.jackpotWin;
         if (i % 3 === 0) { run(g, 300); g.slam(); }
         run(g, 3000);
         assert.ok(!g.spinning, 'still spinning after ' + i);

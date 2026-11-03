@@ -182,7 +182,10 @@ if (which === 'pit_wall') {
 if (which === 'lucky_sevens') {
     let seed = 7;
     Math.random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-    fs.writeFileSync(path.join(DATA, 'lucky_sevens.json'), JSON.stringify({ credits: 48320, coin: 5, bestWin: 12500 }));
+    fs.writeFileSync(path.join(DATA, 'lucky_sevens.json'), JSON.stringify({
+        credits: 48320, coin: 5, jackpot: 24870.5,
+        stats: { spins: 1284, bet: 412650, won: 398420, bestWin: 12500, streak: 0, bestStreak: 9, freeRounds: 6, jackpots: 0, bestJackpot: 0 },
+    }));
     const M = require(path.join(APP, 'model'));
     let g = null;
     const Game = M.Game;
@@ -207,6 +210,25 @@ if (which === 'lucky_sevens') {
         }
         await frames(450);
         shot('lucky_sevens-win', lastFrame);
+        // on to free spins: three WILDs, their announcement
+        for (let i = 0; i < 5000; i++) {
+            await frames(1500);
+            g.credits = Math.max(g.credits, 5000);
+            if (g.free.left) g.free.left = 0;
+            clicks.BTN_SPIN();
+            while (g.spinning) await frames(16);
+            if (g.result.award && !g.result.free) break;
+        }
+        // the announcement comes after the win on show has counted (main.js: countMs + 500)
+        const r = g.result, mult = (r.win + r.jackpotWin) / r.bet;
+        await frames((r.win ? Math.min(5000, 500 + mult * 90) + 500 : 250) + 900);
+        shot('lucky_sevens-free', lastFrame);
+        // the statistics
+        await frames(8000);
+        while (g.spinning || g.free.left) { await frames(500); if (!g.spinning) g.free.left = 0; }
+        clicks.BTN_STATS();
+        await frames(200);
+        shot('lucky_sevens-stats', lastFrame);
         process.exit(0);
     })().catch((e) => { console.error(e); process.exit(1); });
     return;

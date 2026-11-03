@@ -23,6 +23,8 @@ const CAB = { x: 24, y: 46, w: 1116, h: 462 };
 const ROW_H = 100, REEL_W = 195, GAP = 10;
 const WIN = { x: CAB.x + 50, y: CAB.y + 88, w: 5 * REEL_W + 4 * GAP, h: 3 * ROW_H };
 const PANEL = { x: 1160, y: 46, w: 416, h: 462 };
+const TITLE_PLATE = { x: CAB.x + 110, y: CAB.y + 28, w: 400 };
+const JP_PLATE = { x: CAB.x + CAB.w - 110 - 400, y: CAB.y + 28, w: 400 };
 const SPIN_BTN = { x: PANEL.x + 290, y: 420, r: 66 };
 const reelX = (i) => WIN.x + i * (REEL_W + GAP);
 const cellCentre = (i, row) => [reelX(i) + REEL_W / 2, WIN.y + row * ROW_H + ROW_H / 2];
@@ -263,12 +265,18 @@ function drawCabinet(c, ox, oy, colour, title) {
         ball(c, x, y, 8, [[0, '#3b4049'], [0.6, '#c3c9d2'], [1, '#ffffff']]);
         ball(c, x, y, 5.5, [[0, '#3a2600'], [1, '#8a6a2a']]);
     }
-    // the title plate
-    const tx = ox + w / 2, ty = oy + 28;
+    // the title plate, and the jackpot's plate beside it (its number is drawn every frame: JP_PLATE)
+    const tx = TITLE_PLATE.x - CAB.x + ox + TITLE_PLATE.w / 2, ty = TITLE_PLATE.y - CAB.y + oy;
     glow(c, tx, ty + 23, 170, p[3], 0.35);
-    c.card(tx - 200, ty, 400, 48, 24, [[0, '#14030b'], [1, '#2e0614']]);
-    moulding(c, tx - 200, ty, 400, 48, 24, 4, GOLD);
+    c.card(tx - TITLE_PLATE.w / 2, ty, TITLE_PLATE.w, 48, 24, [[0, '#14030b'], [1, '#2e0614']]);
+    moulding(c, tx - TITLE_PLATE.w / 2, ty, TITLE_PLATE.w, 48, 24, 4, GOLD);
     outlined(c, title, tx, ty + 36, 32, '#fff6dc', p[3], 2.2, { literal: true, spacing: 3 });
+    const jx = JP_PLATE.x - CAB.x + ox, jy = JP_PLATE.y - CAB.y + oy;
+    glow(c, jx + JP_PLATE.w / 2, jy + 23, 160, '#ff3d7f', 0.25);
+    c.card(jx, jy, JP_PLATE.w, 48, 24, [[0, '#050608'], [1, '#14080e']]);
+    moulding(c, jx, jy, JP_PLATE.w, 48, 24, 4, GOLD);
+    c.text('JACKPOT', jx + 26, jy + 31, 17, '#ffd36e', { font: 'bold', spacing: 2 });
+    c.text('88888888', jx + JP_PLATE.w - 24, jy + 37, 30, withAlpha('#ff3d7f', 0.05), { font: 'num', align: 'right', literal: true });
     // the reel window's chrome bezel and its dark well
     const wx = WIN.x - CAB.x + ox, wy = WIN.y - CAB.y + oy;
     moulding(c, wx - 14, wy - 14, WIN.w + 28, WIN.h + 28, 18, 11, CHROME);
@@ -361,7 +369,8 @@ const BUTTONS = {
     betDown: { x: PANEL.x + 24, y: PANEL.y + 238, w: 114, h: 46, label: 'BET -' },
     betUp: { x: PANEL.x + 151, y: PANEL.y + 238, w: 114, h: 46, label: 'BET +' },
     max: { x: PANEL.x + 278, y: PANEL.y + 238, w: 114, h: 46, label: 'MAX BET' },
-    auto: { x: PANEL.x + 24, y: PANEL.y + 336, w: 150, h: 54, label: 'AUTO' },
+    auto: { x: PANEL.x + 24, y: PANEL.y + 300, w: 150, h: 46, label: 'AUTO' },
+    stats: { x: PANEL.x + 24, y: PANEL.y + 356, w: 150, h: 46, label: 'STATS' },
 };
 function panelLayer() {
     return lay('ls-panel', PANEL.w, PANEL.h, (c) => {
@@ -395,6 +404,53 @@ function keyLayer(id, state) {
         c.text(q.label, q.w / 2, dy + q.h / 2 + 7, id === 'max' ? 17 : 20, lit ? '#2a1800' : '#e9edf2', { font: 'bold', align: 'center' });
     });
 }
+/* ---------- free spins, statistics ---------- */
+/** the reel window's frame lit while free spins run: a pulse of pink and gold */
+function drawFreeFrame(cv, now) {
+    const k = 0.5 + 0.5 * Math.sin(now / 220);
+    for (let i = 6; i >= 1; i--) cv.strokeRoundRect(WIN.x - 6 - i * 2, WIN.y - 6 - i * 2, WIN.w + 12 + i * 4, WIN.h + 12 + i * 4, 14 + i * 2, 2, withAlpha(mix('#ff3d7f', '#ffd36e', k), 0.09 * (7 - i)));
+}
+/** a ribbon on the window's bottom edge: what's on (free spins left, the multiplier) */
+function drawRibbon(cv, text, color, now) {
+    const w = 460, x = WIN.x + WIN.w / 2 - w / 2, y = WIN.y + WIN.h - 10, h = 44;
+    cv.roundRect(x + 5, y + 7, w, h, h / 2, withAlpha('#000000', 0.5));
+    cv.card(x, y, w, h, h / 2, [[0, '#a8701a'], [1, '#5a3a00']]);
+    moulding(cv, x, y, w, h, h / 2, 5, GOLD);
+    cv.card(x + 5, y + 5, w - 10, h - 10, (h - 10) / 2, [[0, '#3a0a4a'], [1, '#14031c']]);
+    cv.text(text, x + w / 2, y + h / 2 + 8, 22, color, { font: 'bold', align: 'center', spacing: 2, literal: true });
+}
+/** a big announcement over the window: a title, a line under it, stars around */
+function drawAnnounce(cv, title, sub, color, edge, a, now) {
+    const cx = WIN.x + WIN.w / 2, cy = WIN.y + WIN.h / 2;
+    cv.roundRect(WIN.x, WIN.y, WIN.w, WIN.h, 6, withAlpha('#000000', 0.55 * a));
+    glow(cv, cx, cy, 280, color, 0.55 * a);
+    cv.alpha(a);
+    for (let i = 0; i < 10; i++) {
+        const ang = i / 10 * Math.PI * 2 + now / 900, r = 230 + 20 * Math.sin(now / 200 + i);
+        sparkle(cv, cx + Math.cos(ang) * r * 1.6, cy + Math.sin(ang) * r * 0.45, 10 + 4 * Math.sin(now / 150 + i * 2));
+    }
+    const s = 1 + 0.05 * Math.sin(now / 110);
+    outlined(cv, title, cx, cy + 10, 70 * s, '#fff3c4', edge, 4, { spacing: 4, literal: true });
+    if (sub) cv.text(sub, cx, cy + 60, 30, color, { font: 'bold', align: 'center', spacing: 2, literal: true });
+    cv.alpha(1);
+}
+/** the statistics, on dark glass over the window: rows [label, value] in two columns, a footer */
+function drawStats(cv, left, right, footer) {
+    const { x, y, w, h } = WIN;
+    cv.roundRect(x, y, w, h, 8, withAlpha('#06030a', 0.93));
+    cv.strokeRoundRect(x + 6, y + 6, w - 12, h - 12, 8, 1.5, withAlpha('#ffd36e', 0.35));
+    outlined(cv, 'STATISTICS', x + w / 2, y + 44, 30, '#fff3c4', '#a8701a', 1.5, { spacing: 4, shadow: false });
+    const col = (rows, cx) => rows.forEach(([k, v, c], i) => {
+        const ry = y + 92 + i * 34;
+        cv.text(k, cx, ry, 18, withAlpha('#ffffff', 0.6), { font: 'bold', spacing: 1 });
+        cv.text(v, cx + 430, ry, 22, c || '#ffffff', { font: 'num', align: 'right', literal: true });
+        cv.fillRect(cx, ry + 10, 430, 1, withAlpha('#ffffff', 0.06));
+    });
+    col(left, x + 40);
+    col(right, x + w / 2 + 25);
+    cv.text(footer, x + w / 2, y + h - 18, 15, withAlpha('#ffffff', 0.45), { align: 'center' });
+}
+
 /** the domed SPIN button: lit (it can spin), dark (it can't: no credits, driving) or pressed */
 function spinLayer(state) {
     const r = SPIN_BTN.r, S = 2 * r + 4;
@@ -412,5 +468,6 @@ module.exports = {
     setTextScale, drawRoom,
     CAB, WIN, ROW_H, REEL_W, GAP, PANEL, LCD, BUTTONS, SPIN_BTN, BULBS, CABINETS, COIN_R, LINE_COLOURS,
     reelX, cellCentre, symbolLayer, blurLayer, bulbLayer, coinLayer, cabinetLayer, bandLayers, raysLayer, panelLayer, keyLayer, spinLayer,
+    TITLE_PLATE, JP_PLATE, drawFreeFrame, drawRibbon, drawAnnounce, drawStats,
     drawDrum, drawDrumShade, drawGlass, drawCellFrame, drawPayline, outlined, glow, goldCard, moulding, GOLD, SYM, sparkle,
 };

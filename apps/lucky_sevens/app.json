@@ -1,8 +1,8 @@
 {
   "id": "lucky_sevens",
   "title": "Lucky Sevens",
-  "description": "A five reel slot machine for play credits, drawn by the GPU renderer at 60 fps: glossy symbols, reels that bounce to a stop, ten paylines, WILD, big wins with a coin fountain. iDrive controller or touch. Parked only.",
-  "version": "1.0.0",
+  "description": "A five reel slot machine for play credits, drawn by the GPU renderer at 60 fps: glossy symbols, reels that bounce to a stop, ten paylines, WILD, free spins, a progressive jackpot, statistics. iDrive controller or touch. Parked only.",
+  "version": "1.1.0",
   "vendor": "custom",
   "loggingId": "OA9L",
   "iconGlyph": "seven",
@@ -28,6 +28,10 @@
         [
           "BTN_AUTO",
           "Auto"
+        ],
+        [
+          "BTN_STATS",
+          "Stats"
         ],
         [
           "BTN_SETTINGS",
