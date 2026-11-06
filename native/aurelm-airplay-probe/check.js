@@ -1,7 +1,7 @@
 'use strict';
 // The deploy tool's check after an install: the service answers on its control socket (exit 0).
 const net = require('net');
-const sockPath = process.argv[2] || '/run/aurelm-airplay-probe/ctl.sock';
+const sockPath = process.argv[2] || '/run/aurelm-airplay-probe.sock';
 let tries = 0;
 function attempt() {
     const c = net.connect(sockPath);

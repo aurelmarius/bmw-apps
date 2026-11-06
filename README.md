@@ -64,6 +64,7 @@ It is not in the releases: it has its own Store catalog on the development branc
    - **B. iPhone on the car's network:** wireless CarPlay connected.
 4. In the app press **Start test**. On the iPhone: Control Center -> **Screen Mirroring**. If **BMW iDrive test** shows up, tap it.
 5. Result: **PASS** when the iPhone connected (it then says it could not connect: expected). Otherwise the first step that is not green says where it stopped.
+6. To remove it: remove **AirPlay Test** in the Store (the service goes with it). Nothing stays on the head unit: no firewall rule, file, unit or socket ([what goes, and how](native/aurelm-airplay-probe/README.md#removal-leaves-nothing)). The service never runs at boot: only while the app is open, and 10 minutes after.
 
 ---
 

@@ -16,9 +16,11 @@
  * The verdict: an iPhone that connected to tcp 7000 found the receiver and reached it, which is
  * everything a real receiver needs from the network.
  *
- * Runs as root (systemd, aurelm-airplay-probe.service) on the unit's own Node (/usr/bin/node, 8 or
- * later): plain JavaScript, no modules. The app talks to it over /run/aurelm-airplay-probe/ctl.sock
- * (one JSON object per line: {"cmd":"status"|"start"|"stop", "minutes": n}; the reply is the status).
+ * Runs as root (systemd, aurelm-airplay-probe.service), started by the app's connection to
+ * /run/aurelm-airplay-probe.sock (socket activation; nothing runs at boot), and exits by itself 10
+ * minutes after the last test and request. The unit's own Node (/usr/bin/node: 8.9.4 on 2019 head units):
+ * plain JavaScript, no modules. One JSON object per line: {"cmd":"status"|"start"|"stop", "minutes": n};
+ * the reply is the status.
  */
 const fs = require('fs');
 const os = require('os');
@@ -29,7 +31,7 @@ const dns = require('./dns');
 const ap = require('./airplay');
 const nft = require('./nft');
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -121,8 +123,8 @@ function verdict(s) {
 /* ---------------- the probe ---------------- */
 
 /**
- * opts: { runDir, stateDir, port (7000), extraPorts ([7100]), mdnsPort (5353), nft ('nft' | false),
- *         only ([iface names] or null), ignoreSelf (true), loopback (false: our multicast not back to this host), name, log, now }
+ * opts: { stateDir, port (7000), extraPorts ([7100]), mdnsPort (5353), nft ('nft' | false),
+ *         only ([iface names] or null), ignoreSelf (true), loopback (false: our multicast not back to this host), name, log, onChange, onStop, now }
  */
 function createProbe(opts) {
     const o = Object.assign({ port: 7000, extraPorts: [7100], mdnsPort: 5353, nft: 'nft', only: null, ignoreSelf: true, name: 'BMW iDrive test' }, opts || {});
@@ -384,7 +386,7 @@ function createProbe(opts) {
         if (st.mdns.mode === 'own') st.mdns.mode = 'off';
         if (o.nft) { st.fw.removed = nft.remove({ nft: o.nft }); st.fw.state = 'closed'; }
         log('test stopped: ' + (why || 'asked') + (o.nft ? ', firewall rules removed: ' + st.fw.removed : ''));
-        if (o.onChange) o.onChange();
+        if (o.onStop) o.onStop();
         return status();
     }
     /** for exit: the firewall as the unit had it, synchronously */
@@ -402,8 +404,11 @@ function gidOf(group) {
     } catch (e) { return null; }
 }
 
-function serveControl(probe, sockPath, group, log) {
-    try { fs.unlinkSync(sockPath); } catch (e) { /* none */ }
+/**
+ * The control socket: systemd's (socket activation, fd 3) when it handed one over, else a socket of
+ * our own at sockPath (a run by hand, the tests). onRequest() is called for every request.
+ */
+function serveControl(probe, sockPath, group, log, onRequest) {
     const srv = net.createServer((c) => {
         let buf = '';
         c.setEncoding('utf8');
@@ -415,17 +420,23 @@ function serveControl(probe, sockPath, group, log) {
                 const line = buf.slice(0, i); buf = buf.slice(i + 1);
                 let m = {};
                 try { m = JSON.parse(line || '{}'); } catch (e) { m = {}; }
+                if (onRequest) onRequest(m);
                 const p = m.cmd === 'start' ? probe.start(m.minutes) : m.cmd === 'stop' ? probe.stop('stopped from the app') : Promise.resolve(probe.status());
                 Promise.resolve(p).then((s) => { try { c.write(JSON.stringify(s) + '\n'); } catch (e) { /* gone */ } }, (e) => { try { c.write(JSON.stringify({ error: String(e.message || e) }) + '\n'); } catch (x) { /* gone */ } });
             }
         });
         c.on('error', () => { /* client went */ });
     });
+    if (process.env.LISTEN_FDS === '1' && Number(process.env.LISTEN_PID) === process.pid) {
+        srv.listen({ fd: 3 }, () => log('control socket from systemd'));
+        return srv;
+    }
+    try { fs.unlinkSync(sockPath); } catch (e) { /* none */ }
     srv.listen(sockPath, () => {
         const gid = gidOf(group);
         try {
-            if (gid != null) { fs.chownSync(sockPath, 0, gid); fs.chmodSync(sockPath, 0o660); } else { fs.chmodSync(sockPath, 0o666); log('no group ' + group + ': ctl.sock is 0666'); }
-        } catch (e) { log('ctl.sock mode: ' + e.message); }
+            if (gid != null) { fs.chownSync(sockPath, 0, gid); fs.chmodSync(sockPath, 0o660); } else { fs.chmodSync(sockPath, 0o600); log('no group ' + group + ': ' + sockPath + ' is root only'); }
+        } catch (e) { log('control socket mode: ' + e.message); }
         log('control socket ' + sockPath);
     });
     return srv;
@@ -433,37 +444,40 @@ function serveControl(probe, sockPath, group, log) {
 
 /* ---------------- main ---------------- */
 
+const IDLE_EXIT_MS = 10 * 60000;   // no test and no request this long: exit (the socket starts it again)
+const REPORT_MS = 30000;           // the running test's report on disk this often (and at its end)
+
 function main() {
-    const runDir = process.env.PROBE_RUN || '/run/aurelm-airplay-probe';
     const stateDir = process.env.PROBE_STATE || '/var/opt/aurelm-airplay-probe/state';
+    const sockPath = process.env.PROBE_SOCK || '/run/aurelm-airplay-probe.sock';
     const log = (s) => console.log(s);
-    let statusT = null;
-    const writeStatus = () => {
-        if (statusT) return;
-        statusT = setTimeout(() => {
-            statusT = null;
-            try { fs.writeFileSync(path.join(runDir, 'status.json'), JSON.stringify(probe.status(), null, 1)); } catch (e) { /* no run dir */ }
-            try { fs.writeFileSync(path.join(stateDir, 'last-report.json'), JSON.stringify(probe.status(), null, 1)); } catch (e) { /* no state dir */ }
-        }, 500);
+    let lastReport = 0, lastRequest = Date.now();
+    const report = (force) => {
+        if (!force && Date.now() - lastReport < REPORT_MS) return;
+        lastReport = Date.now();
+        try { fs.writeFileSync(path.join(stateDir, 'last-report.json'), JSON.stringify(probe.status(), null, 1)); } catch (e) { /* no state dir */ }
     };
     const probe = createProbe({
-        runDir, stateDir, log, onChange: writeStatus,
+        stateDir, log, onChange: () => report(false), onStop: () => report(true),
         nft: process.env.PROBE_NFT === 'off' ? false : (process.env.PROBE_NFT || 'nft'),
         only: process.env.PROBE_IFACES ? process.env.PROBE_IFACES.split(',') : null,
         name: process.env.PROBE_NAME || 'BMW iDrive test',
     });
-    // what an earlier run left in the firewall goes first
+    // what an earlier run in this boot left in the firewall goes first (a reboot clears it anyway)
     probe.cleanupSync();
-    try { fs.writeFileSync(path.join(stateDir, 'ruleset-at-start.txt'), nft.listing()); } catch (e) { /* no state dir */ }
-    serveControl(probe, path.join(runDir, 'ctl.sock'), process.env.PROBE_GROUP || 'tm_oap_app', log);
+    serveControl(probe, sockPath, process.env.PROBE_GROUP || 'tm_oap_app', log, () => { lastRequest = Date.now(); });
     log('aurelm-airplay-probe ' + VERSION + ' on node ' + process.version + ', receiver ' + probe.identity.deviceid);
-    const bye = (sig) => {
-        log('exit on ' + sig);
-        probe.stop(sig).then(() => process.exit(0), () => { probe.cleanupSync(); process.exit(0); });
-        setTimeout(() => { probe.cleanupSync(); process.exit(0); }, 3000).unref();
+    const bye = (why, code) => {
+        log('exit: ' + why);
+        const t = setTimeout(() => { probe.cleanupSync(); process.exit(code); }, 4000);
+        probe.stop(why).then(() => { clearTimeout(t); probe.cleanupSync(); process.exit(code); }, () => { probe.cleanupSync(); process.exit(code); });
     };
-    process.on('SIGTERM', () => bye('SIGTERM'));
-    process.on('SIGINT', () => bye('SIGINT'));
+    setInterval(() => {
+        const s = probe.status();
+        if (!s.active && Date.now() - lastRequest > IDLE_EXIT_MS) bye('idle', 0);
+    }, 30000);
+    process.on('SIGTERM', () => bye('SIGTERM', 0));
+    process.on('SIGINT', () => bye('SIGINT', 0));
     process.on('uncaughtException', (e) => { log('fatal: ' + (e.stack || e)); probe.cleanupSync(); process.exit(1); });
 }
 

@@ -7,7 +7,7 @@
  * minutes; the page shows, step by step, what got through: the network, the firewall, mDNS, the
  * iPhone's AirPlay query and its connection. On the iPhone: Control Center > Screen Mirroring.
  *
- * Talks to the service over /run/aurelm-airplay-probe/ctl.sock (a JSON object per line).
+ * Talks to the service over /run/aurelm-airplay-probe.sock (a JSON object per line).
  */
 const net = require('net');
 const mgu = require('./kit/mgu');
@@ -15,7 +15,7 @@ const { withAlpha } = require('./kit/canvas');
 const G = require('./kit/gauges');
 
 const W = 1600, H = 520;
-const SOCK = process.env.AIRPLAY_PROBE_SOCK || '/run/aurelm-airplay-probe/ctl.sock';
+const SOCK = process.env.AIRPLAY_PROBE_SOCK || '/run/aurelm-airplay-probe.sock';
 const MINUTES = 15;
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 

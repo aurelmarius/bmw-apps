@@ -99,6 +99,8 @@ test('nft: rules go at the top of every IPv4 input and output chain, and come ou
     const inserts = lines.filter((l) => l.indexOf('insert rule') === 0);
     assert.strictEqual(inserts.length, 7);
     assert.ok(inserts.indexOf('insert rule inet mgu_uplink input iifname "wlan0" tcp dport { 7000, 7100 } accept comment "aurelm-airplay-probe"') >= 0);
+    // mDNS out only from this service (root)
+    assert.ok(inserts.indexOf('insert rule ip filter output oifname "wlan0" meta skuid 0 udp dport 5353 accept comment "aurelm-airplay-probe"') >= 0);
 
     fs.writeFileSync(calls, '');
     assert.strictEqual(nft.remove({ nft: fake }), 1);
@@ -190,6 +192,34 @@ test('probe: an mDNS query is answered and a connection is noted (loopback)', as
     } finally {
         await probe.stop('finally');
     }
+});
+
+test('service: started as systemd would (control socket, check.js), stopped with SIGTERM', async () => {
+    const { spawn, spawnSync } = require('child_process');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-'));
+    const sock = path.join(tmp, 'ctl.sock');
+    const env = Object.assign({}, process.env, { PROBE_SOCK: sock, PROBE_STATE: tmp, PROBE_NFT: 'off', PROBE_GROUP: 'no-such-group' });
+    const svc = spawn(process.execPath, [path.join(DIR, 'probe.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    svc.stdout.on('data', (d) => { out += d; });
+    svc.stderr.on('data', (d) => { out += d; });
+    try {
+        const r = spawnSync(process.execPath, [path.join(DIR, 'check.js'), sock], { encoding: 'utf8', timeout: 20000 });
+        assert.strictEqual(r.status, 0, r.stdout + r.stderr + out);
+        assert.ok(/answers: idle/.test(r.stdout), r.stdout);
+        // root only without the app's group
+        assert.strictEqual(fs.statSync(sock).mode & 0o777, 0o600);
+    } finally {
+        const code = await new Promise((res) => { svc.on('exit', (c) => res(c)); svc.kill('SIGTERM'); });
+        assert.strictEqual(code, 0, out);
+    }
+    assert.ok(/exit: SIGTERM/.test(out), out);
+});
+
+test('cleanup: never fails, also without nft', () => {
+    const { spawnSync } = require('child_process');
+    const r = spawnSync(process.execPath, [path.join(DIR, 'cleanup.js')], { encoding: 'utf8', env: Object.assign({}, process.env, { PATH: '/nonexistent' }) });
+    assert.strictEqual(r.status, 0, r.stdout + r.stderr);
 });
 
 (async () => {

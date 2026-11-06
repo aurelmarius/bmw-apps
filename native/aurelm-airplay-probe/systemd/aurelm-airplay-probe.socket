@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=aurelm-airplay-probe control socket (the app AirPlay Test)
+
+[Socket]
+# The app's connection starts aurelm-airplay-probe.service; nothing of the test runs before it, at boot
+# included. Every OAP app process has tm_oap_app as a supplementary group. The socket file goes when the
+# socket stops (an uninstall).
+ListenStream=/run/aurelm-airplay-probe.sock
+SocketMode=0660
+SocketGroup=tm_oap_app
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

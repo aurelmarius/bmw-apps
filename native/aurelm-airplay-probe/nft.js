@@ -8,7 +8,7 @@
  * interfaces it uses and the ports it needs only:
  *
  *   input   tcp dport 7000, 7100 (AirPlay), udp dport 5353 (mDNS)
- *   output  tcp sport 7000, 7100, udp dport 5353, udp sport 5353
+ *   output  tcp sport 7000, 7100; udp dport 5353 and udp sport 5353 from root (this service) only
  *
  * Each rule carries the comment COMMENT; remove() deletes every rule with it, wherever it is, so a
  * stop, a crash and the next start all leave the firewall as the unit had it. mgu-uplink rewrites
@@ -20,8 +20,14 @@ const { execFileSync } = require('child_process');
 const COMMENT = 'aurelm-airplay-probe';
 const PORTS_TCP = '{ 7000, 7100 }';
 
+/**
+ * nft through `sh -c 'ulimit -c 1; exec nft ...'`: a crash of nft pipes no core dump to the unit's crash
+ * handler, which restarts the head unit for a program it does not list. The service's LimitCORE=1
+ * covers it already; a hook the deploy tool runs (deactivate) may not have it.
+ */
 function run(args, nft) {
-    return execFileSync(nft || 'nft', args, { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'pipe'] });
+    return execFileSync('/bin/sh', ['-c', 'ulimit -c 1; exec "$0" "$@"', nft || 'nft'].concat(args),
+        { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 /** `nft -a list ruleset` -> [{ family, table, chain, hook, ours: [handle] }] for every chain */
@@ -47,10 +53,11 @@ function rulesFor(hook, ifname) {
         'iifname ' + q + ' tcp dport ' + PORTS_TCP + ' accept',
         'iifname ' + q + ' udp dport 5353 accept',
     ];
+    // mDNS out: only this service's own socket (root), not the car's own responder
     if (hook === 'output') return [
         'oifname ' + q + ' tcp sport ' + PORTS_TCP + ' accept',
-        'oifname ' + q + ' udp dport 5353 accept',
-        'oifname ' + q + ' udp sport 5353 accept',
+        'oifname ' + q + ' meta skuid 0 udp dport 5353 accept',
+        'oifname ' + q + ' meta skuid 0 udp sport 5353 accept',
     ];
     return [];
 }

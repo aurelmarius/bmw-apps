@@ -2,23 +2,32 @@
 [Unit]
 Description=aurelm-airplay-probe: AirPlay network test (mDNS announce, tcp 7000/7100 probe) for the app AirPlay Test
 RequiresMountsFor=/var/opt
-After=local-fs.target network.target
+# Started by the app's connection to the socket, never at boot; it exits by itself 10 minutes after the
+# last test and the last request. Ordered before no head-unit unit, waited for by none.
+Requires=aurelm-airplay-probe.socket
+After=aurelm-airplay-probe.socket
+StartLimitIntervalSec=600
+StartLimitBurst=10
 
 [Service]
-# root: the test opens (and closes again) accept rules for its ports in the unit's firewall (nft).
-# Idle until the app starts a test; a test ends by itself after at most 60 minutes.
+# root: the test opens (and closes again) accept rules for its ports in the unit's firewall (nft). No
+# "+" commands: every command here runs with the limits below, LimitCORE=1 included.
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
-Environment=PROBE_RUN=/run/aurelm-airplay-probe
 Environment=PROBE_STATE=/var/opt/aurelm-airplay-probe/state
-RuntimeDirectory=aurelm-airplay-probe
-RuntimeDirectoryMode=0755
 ExecStartPre=-/bin/mkdir -p /var/opt/aurelm-airplay-probe/state
 ExecStart=/usr/bin/node /var/opt/aurelm-airplay-probe/current/probe.js
+# however the service ended (stop, crash, kill, the out-of-memory killer): the firewall as it was
 ExecStopPost=-/usr/bin/node /var/opt/aurelm-airplay-probe/current/cleanup.js
 Restart=on-failure
-RestartSec=5
-TimeoutStopSec=6
+RestartSec=10
+TimeoutStopSec=8
+Nice=10
+IOSchedulingClass=idle
+CPUQuota=20%
+MemoryLimit=64M
+TasksMax=16
+# No core dump goes to the crash handler (which restarts the head unit for a program it does not list),
+# so a crash restarts this service and never the head unit.
 LimitCORE=1
-
-[Install]
-WantedBy=multi-user.target
+StandardOutput=journal
+StandardError=journal
