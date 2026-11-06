@@ -1,0 +1,88 @@
+{
+  "id": "aurelm_airplay_probe",
+  "title": "AirPlay Test",
+  "description": "Network test for a future AirPlay receiver: can an iPhone find and reach the head unit? Announces a test receiver and shows what the iPhone does. Needs the AirPlay network test service.",
+  "version": "0.1.0",
+  "vendor": "custom",
+  "loggingId": "OA9X",
+  "iconGlyph": "AP",
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "AirPlay Test",
+      "buttons": [
+        [
+          "BTN_START",
+          "Start test"
+        ],
+        [
+          "BTN_STOP",
+          "Stop test"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "theme",
+      "label": "Colour theme",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    }
+  ]
+}

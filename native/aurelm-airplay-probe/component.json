@@ -1,0 +1,39 @@
+{
+  "id": "aurelm-airplay-probe",
+  "kind": "tool",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "title": "AirPlay network test service",
+  "description": "For the app AirPlay Test: announces a test AirPlay receiver over mDNS and notes whether an iPhone finds and reaches it (tcp 7000/7100). Opens the firewall for those ports only while a test runs. Not a receiver: nothing is streamed.",
+  "requires": {
+    "mgu-deploy": "0.7.0"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "files": [
+    { "path": "probe.js", "from": "probe.js", "mode": "0644" },
+    { "path": "dns.js", "from": "dns.js", "mode": "0644" },
+    { "path": "airplay.js", "from": "airplay.js", "mode": "0644" },
+    { "path": "nft.js", "from": "nft.js", "mode": "0644" },
+    { "path": "check.js", "from": "check.js", "mode": "0644" },
+    { "path": "cleanup.js", "from": "cleanup.js", "mode": "0644" },
+    { "path": "README.md", "from": "README.md", "mode": "0644" }
+  ],
+  "check": [
+    "check.js"
+  ],
+  "units": [
+    { "name": "aurelm-airplay-probe.service", "from": "systemd/aurelm-airplay-probe.service" }
+  ],
+  "enable": [
+    { "unit": "aurelm-airplay-probe.service", "target": "multi-user.target" }
+  ],
+  "recmgr": [
+    "aurelm-airplay-probe"
+  ],
+  "restart": [
+    "aurelm-airplay-probe.service"
+  ]
+}

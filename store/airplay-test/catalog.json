@@ -1,0 +1,50 @@
+{
+  "schema": 2,
+  "name": "Aurel Marius AirPlay network test",
+  "components": [
+    {
+      "id": "aurelm-airplay-probe",
+      "kind": "tool",
+      "version": "0.1.0",
+      "title": "AirPlay network test service",
+      "description": "For the app AirPlay Test: announces a test AirPlay receiver over mDNS and notes whether an iPhone finds and reaches it (tcp 7000/7100). Opens the firewall for those ports only while a test runs. Not a receiver: nothing is streamed.",
+      "author": "aurelmarius",
+      "artifact": {
+        "name": "aurelm-airplay-probe@0.1.0.tgz",
+        "size": 15387,
+        "sha256": "c6b616298e699b40445e5e1c7ccf7c7ad5a30a298b1dd2ef57665a9b88f3b792",
+        "url": "aurelm-airplay-probe@0.1.0.tgz"
+      },
+      "requires": {
+        "mgu-deploy": "0.7.0"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ]
+    },
+    {
+      "id": "aurelm_airplay_probe",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "AirPlay Test",
+      "description": "Network test for a future AirPlay receiver: can an iPhone find and reach the head unit? Announces a test receiver and shows what the iPhone does. Needs the AirPlay network test service.",
+      "author": "aurelmarius",
+      "artifact": {
+        "name": "aurelm_airplay_probe@0.1.0.tgz",
+        "size": 554440,
+        "sha256": "4731cbff38ce9a45c74272f035fbe44d0ef0f314b7085c4411e21fe640dce873",
+        "url": "aurelm_airplay_probe@0.1.0.tgz"
+      },
+      "requires": {
+        "aurelm-airplay-probe": "0.1.0"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "icon": "aurelm_airplay_probe.png",
+      "iconSha256": "10b690639717c15bbffe7425e23d8bd34609f6f4fa34fee7a455a7c5dd4442f0"
+    }
+  ]
+}

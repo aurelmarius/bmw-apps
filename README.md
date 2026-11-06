@@ -46,6 +46,25 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Hybrid Cost - price editor](docs/screenshots/hybrid_cost-price-editor.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
+### 🧪 AirPlay Test (`aurelm_airplay_probe`), experimental
+*A network test for a future AirPlay receiver: can an iPhone find the head unit and connect to it?*
+
+Not a receiver: nothing is streamed. The app and its root service (`native/aurelm-airplay-probe`) announce a test receiver, **BMW iDrive test**, on the Wi-Fi networks for 15 minutes and show step by step what gets through: the network, the firewall, mDNS, the iPhone's AirPlay query and its connection. While the test runs, the service opens the firewall for tcp 7000/7100 and udp 5353 on the Wi-Fi interfaces only, and closes it again when the test ends.
+
+It is not in the releases: it has its own Store catalog on the development branch.
+
+1. In the Store: **Sources** -> **Add source**, type **HTTPS**, URL:
+   ```text
+   https://raw.githubusercontent.com/aurelmarius/bmw-apps/refs/heads/claude/confident-bohr-gdl0d4/store/airplay-test/catalog.json
+   ```
+   Or a USB stick: the files of [`store/airplay-test/`](store/airplay-test) in `mgu-repo/airplay-test/` on the stick.
+2. Install **AirPlay Test** (the Store installs the **AirPlay network test service** first). Restart the head unit if the Store asks.
+3. Put the iPhone and the head unit on one network, one setup per run:
+   - **A. Head unit on the iPhone's hotspot:** iPhone: Personal Hotspot on (Maximise Compatibility on); head unit: join it through **mgu-uplink** (Wi-Fi), or the iPhone on USB with Personal Hotspot.
+   - **B. iPhone on the car's network:** wireless CarPlay connected.
+4. In the app press **Start test**. On the iPhone: Control Center -> **Screen Mirroring**. If **BMW iDrive test** shows up, tap it.
+5. Result: **PASS** when the iPhone connected (it then says it could not connect: expected). Otherwise the first step that is not green says where it stopped.
+
 ---
 
 ## 🚀 Installation

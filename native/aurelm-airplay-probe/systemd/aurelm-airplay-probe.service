@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=aurelm-airplay-probe: AirPlay network test (mDNS announce, tcp 7000/7100 probe) for the app AirPlay Test
+RequiresMountsFor=/var/opt
+After=local-fs.target network.target
+
+[Service]
+# root: the test opens (and closes again) accept rules for its ports in the unit's firewall (nft).
+# Idle until the app starts a test; a test ends by itself after at most 60 minutes.
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PROBE_RUN=/run/aurelm-airplay-probe
+Environment=PROBE_STATE=/var/opt/aurelm-airplay-probe/state
+RuntimeDirectory=aurelm-airplay-probe
+RuntimeDirectoryMode=0755
+ExecStartPre=-/bin/mkdir -p /var/opt/aurelm-airplay-probe/state
+ExecStart=/usr/bin/node /var/opt/aurelm-airplay-probe/current/probe.js
+ExecStopPost=-/usr/bin/node /var/opt/aurelm-airplay-probe/current/cleanup.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=6
+LimitCORE=1
+
+[Install]
+WantedBy=multi-user.target
