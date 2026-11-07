@@ -46,7 +46,6 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Hybrid Cost - price editor](docs/screenshots/hybrid_cost-price-editor.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
-
 ---
 
 ## 🚀 Installation
