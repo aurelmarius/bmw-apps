@@ -2,7 +2,7 @@
 /**
  * make_icon.js <glyph> <out.png> - 140x140 app tile icon in the HMI's style
  * (white line art on transparent, one accent element). Glyphs: gauge, flag,
- * engine, battery, service, doom, snake, drone, wall, seven, cards, ..., or any 1-3 characters (drawn as text).
+ * engine, battery, service, wheel, doom, snake, drone, wall, seven, cards, ..., or any 1-3 characters (drawn as text).
  */
 const fs = require('fs');
 const path = require('path');
@@ -147,6 +147,18 @@ if (glyph === 'gauge') {
     c.circle(93, 26, 2.5, '#000000');
     c.circle(116, 30, 11, A);                                // apple
     c.line(116, 19, 119, 12, 3, W);
+} else if (glyph === 'wheel') {
+    // steering wheel with heat waves above it
+    c.arc(70, 84, 38, 46, 0, 360, W);
+    c.circle(70, 88, 10, W);
+    c.line(28, 84, 60, 87, 7, W);
+    c.line(112, 84, 80, 87, 7, W);
+    c.line(70, 98, 70, 126, 7, W);
+    for (const x of [52, 70, 88]) {
+        const pts = [];
+        for (let k = 0; k <= 10; k++) pts.push([x + Math.sin(k / 10 * Math.PI * 2) * 4, 30 - k * 2.4]);
+        c.polyline(pts, 4, A);
+    }
 } else {
     c.strokeRoundRect(14, 14, 112, 112, 22, 6, W);
     c.text(glyph, 70, 88, 56, W, { font: 'bold', align: 'center' });

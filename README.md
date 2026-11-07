@@ -46,6 +46,21 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Hybrid Cost - price editor](docs/screenshots/hybrid_cost-price-editor.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
+### 3. 🔥 Wheel Heating (`wheel_heat`)
+*Steering wheel heating on/off from a favourite button.*
+
+For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel: that wheel has no heating button, and on iDrive 7 only the voice command could switch it. The app switches it the way the voice command does, through the head unit's climate service (`ClimateMaster.requestSteeringWheelHeating`), with the steering wheel's own service (`SteeringWheelClimate.requestHeating`) as a fallback.
+
+* **Favourite button shortcut**: highlight *Wheel Heating* in the apps menu and hold a favourite button (1-8) to save it. Each press then switches the heating on or off (setting: switch on / off, always on, or only show the status).
+* **Status screen**: on / off as the car reports it, with an on / off button.
+* **Details page**: what both services report (available, level, coding) and every request sent with the car's answer.
+* **Client group**: which client group the climate service accepts from an app is not documented. When the climate service turns a request down, the app tries groups 0-7 and keeps the one it accepts (setting).
+* **Screen after a favourite button** (setting): show the status screen, or stay on the current screen.
+
+![Wheel Heating - status](docs/screenshots/wheel_heat-status.png)
+![Wheel Heating - details](docs/screenshots/wheel_heat-details.png)
+<sub>Screenshots drawn by the app on a PC with a simulated car.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -58,7 +73,7 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care** or **Hybrid Cost**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost** or **Wheel Heating**.
 
 ### Method 2: Via USB Stick
 1. Download `engine_care@<version>.tgz` and `hybrid_cost@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
@@ -94,6 +109,7 @@ python3 kit/tools/build.py engine_care hybrid_cost  # -> dist/<id>@<version>.tgz
 node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
+node tests/wheel_heat.test.js                           # Wheel Heating's switching against a simulated car
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```
