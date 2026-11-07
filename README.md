@@ -49,7 +49,7 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ### 3. 🔥 Wheel Heating (`wheel_heat`)
 *Steering wheel heating on/off from a favourite button.*
 
-For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel: that wheel has no heating button, and on iDrive 7 only the voice command could switch it. The app switches it the way the voice command does, through the head unit's climate service (`ClimateMaster.requestSteeringWheelHeating`), with the steering wheel's own service (`SteeringWheelClimate.requestHeating`) as a fallback.
+For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel: that wheel has no heating button, and on iDrive 7 only the voice command could switch it. The app switches it the way the voice command does, through the head unit's climate service (`ClimateMaster.requestSteeringWheelHeating`). If the climate service turns the request down, the app writes the level to the climate service's status field (`statusSteeringWheelHeating`, which has a setter), and then tries the steering wheel's own service (`SteeringWheelClimate.requestHeating`).
 
 * **Favourite button shortcut**: highlight *Wheel Heating* in the apps menu and hold a favourite button (1-8) to save it. Each press then switches the heating on or off (setting: switch on / off, always on, or only show the status).
 * **Status screen**: on / off as the car reports it, with an on / off button.

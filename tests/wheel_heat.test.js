@@ -53,6 +53,14 @@ function fakeCar(cfg) {
             throw new Error('no method ' + method);
         },
     };
+    if (climate && climate.setter) {
+        car.signals.set = async (proxy, field, value) => {
+            car.calls.push({ method: 'set ' + field, args: JSON.parse(JSON.stringify(value)) });
+            if (climate.setter === 'ignored') return;
+            climate.level = value.configuredIntensityLevel;
+            setTimeout(() => car.subs.climate.handlers.statusSteeringWheelHeating({ statusSteeringWheelHeating: status() }), 50);
+        };
+    }
     return car;
 }
 
@@ -164,6 +172,24 @@ const tests = {
         const [a, b] = await Promise.all([h.toggle(), h.toggle()]);
         assert.strictEqual(a, b);
         assert.strictEqual(car.calls.length, 1);
+    },
+    async 'method turned down: the status field is written instead (notified wrapped in its name)'() {
+        const car = fakeCar({ climate: { takes: [], level: 0, setter: true }, body: { heating: false } });
+        const { h } = make(car);
+        await h.init();
+        const r = await h.toggle();
+        assert.ok(r.ok && r.via === 'climate-set' && r.confirmed && r.on === true, JSON.stringify(r));
+        const set = car.calls.find((c) => c.method === 'set statusSteeringWheelHeating');
+        assert.strictEqual(set.args.configuredIntensityLevel, 1);
+        assert.ok(!car.calls.some((c) => c.method === 'requestHeating'), 'no body request');
+    },
+    async 'a write that changes nothing: on to the steering wheel service'() {
+        const car = fakeCar({ climate: { takes: [], level: 0, setter: 'ignored' }, body: { heating: false } });
+        const { h } = make(car);
+        await h.init();
+        const r = await h.toggle();
+        assert.ok(r.ok && r.via === 'body', JSON.stringify(r));
+        assert.ok(h.history.some((x) => x.answer === 'SET_NO_EFFECT'));
     },
     async 'accepted enum as number, name or struct'() {
         assert.strictEqual(acceptedName({ accepted: 1 }), 'IS_ACCEPTED');

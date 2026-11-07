@@ -2,13 +2,13 @@
   "id": "wheel_heat",
   "title": "Wheel Heating",
   "description": "Steering wheel heating on/off from a favourite button: for a heated iDrive 8 (LCI) steering wheel without its own button, fitted to an iDrive 7 car",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "vendor": "custom",
   "loggingId": "OA9F",
   "iconGlyph": "wheel",
   "signals": {
     "de.bmw.infotainment.climate.climatemaster.ClimateMaster": {
-      "statusSteeringWheelHeating": "rs",
+      "statusSteeringWheelHeating": "rsw",
       "statusAvailableSteeringWheelHeating": "rs",
       "_methods": [
         "requestSteeringWheelHeating"

@@ -10,6 +10,8 @@
  *     field  statusAvailableSteeringWheelHeating { steeringWheelHeatingAvailable, priorityClientID }
  *     method requestSteeringWheelHeating(clientGroupId, steeringWheelHeating = level, saveLUM)
  *            -> accepted (ClimateMasterTypes.Accepted)
+ *     statusSteeringWheelHeating also has a setter: written with the level when the method is
+ *     turned down
  *   SteeringWheelClimate (de.bmw.body.steeringwheelcomfort.SteeringWheelClimate, the body service):
  *     field  heatingState { functionalityCoded, availability, heating }
  *     method requestHeating(requestor = 5 bytes, heating)   (fire and forget: no reply)
@@ -39,6 +41,17 @@ const isOk = (name) => name === 'IS_ACCEPTED' || name === 'NO_CHANGES';
 const RETRY = ['NOT_ACCEPTED', 'NOT_ACCEPTED_LOW_PRIORITY'];
 
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : undefined);
+/**
+ * The struct that holds `key`, however the binding hands the field over: plain, wrapped in the
+ * field's name, or as a one-entry list (as idrive7-apps' eDrive reads the same services).
+ */
+function holder(v, key, depth) {
+    if (!v || typeof v !== 'object' || (depth || 0) > 4) return null;
+    if (key in v) return v;
+    for (const k of Object.keys(v)) { const h = holder(v[k], key, (depth || 0) + 1); if (h) return h; }
+    return null;
+}
+const unwrap = (v, key) => holder(v, key) || v;
 
 class WheelHeat extends EventEmitter {
     /**
@@ -63,11 +76,11 @@ class WheelHeat extends EventEmitter {
         const s = this.signals;
         const [c, b] = await Promise.all([
             s.watch(CLIMATE, '1', {
-                statusSteeringWheelHeating: (v) => { this.climate.status = v; this.climate.t = Date.now(); this._changed('climate'); },
-                statusAvailableSteeringWheelHeating: (v) => { this.climate.avail = v; this._changed('climate availability'); },
+                statusSteeringWheelHeating: (v) => { this.climate.status = unwrap(v, 'availableRange'); this.climate.t = Date.now(); this._changed('climate'); },
+                statusAvailableSteeringWheelHeating: (v) => { this.climate.avail = unwrap(v, 'steeringWheelHeatingAvailable'); this._changed('climate availability'); },
             }, this.log),
             s.watch(BODY, '1', {
-                heatingState: (v) => { this.body.state = v; this.body.t = Date.now(); this._changed('body'); },
+                heatingState: (v) => { this.body.state = unwrap(v, 'heating'); this.body.t = Date.now(); this._changed('body'); },
             }, this.log),
         ]);
         this.climate.sub = c; this.body.sub = b;
@@ -124,9 +137,9 @@ class WheelHeat extends EventEmitter {
             ? sub.proxy.getValue(field, 1500).then(fn).catch((e) => this.log.warn('get ' + field + ': ' + e))
             : Promise.resolve());
         await Promise.all([
-            get(this.climate.sub, 'statusSteeringWheelHeating', (v) => { this.climate.status = v; this.climate.t = Date.now(); }),
-            get(this.climate.sub, 'statusAvailableSteeringWheelHeating', (v) => { this.climate.avail = v; }),
-            get(this.body.sub, 'heatingState', (v) => { this.body.state = v; this.body.t = Date.now(); }),
+            get(this.climate.sub, 'statusSteeringWheelHeating', (v) => { this.climate.status = unwrap(v, 'availableRange'); this.climate.t = Date.now(); }),
+            get(this.climate.sub, 'statusAvailableSteeringWheelHeating', (v) => { this.climate.avail = unwrap(v, 'steeringWheelHeatingAvailable'); }),
+            get(this.body.sub, 'heatingState', (v) => { this.body.state = unwrap(v, 'heating'); this.body.t = Date.now(); }),
         ]);
         return this.state();
     }
@@ -184,7 +197,34 @@ class WheelHeat extends EventEmitter {
             }
             if (RETRY.indexOf(answer) < 0) break;      // an error, defrost, max/min...: another id won't help
         }
-        return { ok: false, via: 'climate', answer, msg: 'climate service: ' + answer };
+        // the status field has a setter too (id 119 in the catalog): write the level there
+        const set = await this._viaClimateSetter(sub, level);
+        if (set.ok) return Object.assign(set, { method: answer });
+        return { ok: false, via: 'climate', answer, setter: set.answer, msg: 'climate service: ' + answer };
+    }
+
+    async _viaClimateSetter(sub, level) {
+        if (!this.signals.set) return { ok: false, answer: 'NO_SETTER' };
+        const cur = this.climate.status || {};
+        const value = {
+            configuredIntensityLevel: level,
+            actualIntensityLevel: num(cur.actualIntensityLevel) !== undefined ? cur.actualIntensityLevel : level,
+            availableRange: cur.availableRange || { minValue: this.range().min, maxValue: this.range().max },
+            saveLUM: false,
+        };
+        try {
+            await this.signals.set(sub.proxy, 'statusSteeringWheelHeating', value, 3000);
+            // a write the provider takes need not switch anything: only a reported change counts,
+            // else the next path is tried
+            const done = await this._confirm(level > this.range().min);
+            const answer = done ? 'SET' : 'SET_NO_EFFECT';
+            this._remember('climate-set', value, answer);
+            return { ok: done, via: 'climate-set', level, answer };
+        } catch (e) {
+            const answer = 'ERROR: ' + (e && e.message || e);
+            this._remember('climate-set', value, answer);
+            return { ok: false, via: 'climate-set', answer };
+        }
     }
 
     async _viaBody(on) {

@@ -129,8 +129,9 @@ mgu.run({
             y = 170;
             if (!heat.history.length) cv.text('Nothing sent yet', 848, y, 21, t.dim);
             heat.history.slice(0, 8).forEach((h) => {
-                const a = h.via === 'climate' ? 'group ' + h.args.clientGroupId + ', level ' + h.args.steeringWheelHeating : 'heating ' + h.args.heating;
-                const ok = h.answer === 'IS_ACCEPTED' || h.answer === 'NO_CHANGES' || h.answer === 'SENT';
+                const a = h.via === 'climate' ? 'group ' + h.args.clientGroupId + ', level ' + h.args.steeringWheelHeating
+                    : h.via === 'climate-set' ? 'write level ' + h.args.configuredIntensityLevel : 'heating ' + h.args.heating;
+                const ok = ['IS_ACCEPTED', 'NO_CHANGES', 'SENT', 'SET'].indexOf(h.answer) >= 0;
                 cv.text(fitText(cv, h.via + ': ' + a, 20, 380), 848, y, 20, t.text);
                 cv.text(fitText(cv, h.answer, 19, 300), 1544, y, 19, ok ? GREEN : RED, { align: 'right' });
                 y += 36;
