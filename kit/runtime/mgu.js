@@ -9,6 +9,9 @@
  *       ctx.ui.onClick('BTN_RESET', () => ...);
  *       ctx.loop('MAIN', 4, async () => ctx.ui.image('MAIN_GFX', canvas));
  *     },
+ *     onEntry(reason, uuid) {   // optional: tile / favourite button pressed (reason ENTRY_POINT, BOOKMARK...)
+ *       return true;            // false: don't open the screen
+ *     },
  *   });
  *
  * ctx = { app, ui, settings, log, theme(), signals, spec, dataDir }
@@ -647,9 +650,15 @@ async function runInner(impl) {
     };
     // a tap on the home-screen widget opens the app
     widget.onTap(() => { if (entryUuids[0]) openEntry(entryUuids[0]); });
+    // impl.onEntry(reason, uuid): the app's tile or a favourite button (BOOKMARK) was pressed;
+    // return false to leave the screen closed (the app did its job without it)
+    const onEntry = (reason, uuid) => {
+        if (!impl || typeof impl.onEntry !== 'function') return true;
+        try { return impl.onEntry(String(reason), uuid) !== false; } catch (e) { log.error('onEntry', e); return true; }
+    };
     app.on('entryPointExecute', (uuid, reason, name) => {
         log.info('entry point ' + name + ' (' + reason + ')');
-        openEntry(uuid);
+        if (onEntry(reason, uuid)) openEntry(uuid);
     });
 
     // never let a UI call that the HMI does not answer block the app start:
@@ -677,7 +686,7 @@ async function runInner(impl) {
     // launched by a tile tap / bookmark: the execute event came before we
     // listened, so open the screen ourselves (M Laptimer does the same)
     const lastEntry = app.getLastExecutedEntryPointUuid && app.getLastExecutedEntryPointUuid();
-    if (lastEntry && ['ENTRY_POINT', 'BOOKMARK', 'LUM'].indexOf(String(app.startReason)) >= 0) openEntry(lastEntry);
+    if (lastEntry && ['ENTRY_POINT', 'BOOKMARK', 'LUM'].indexOf(String(app.startReason)) >= 0 && onEntry(app.startReason, lastEntry)) openEntry(lastEntry);
     process.on('unhandledRejection', (e) => log.error('unhandled', e));
     return ctx;
 }

@@ -11,7 +11,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const M = require(path.join(__dirname, '..', 'apps', 'engine_care', 'model'));
+const M = require(path.join(__dirname, '..', 'apps', 'aurelm_engine_care', 'model'));
 
 const files = [], sets = {};
 let events = false;
