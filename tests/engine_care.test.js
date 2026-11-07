@@ -1,13 +1,13 @@
 'use strict';
 /**
- * Engine Care's model (apps/engine_care/model.js): node tests/engine_care.test.js
+ * Engine Care's model (apps/aurelm_engine_care/model.js): node tests/engine_care.test.js
  * Each test drives a Tracker with a made-up second-by-second drive; no car, no head unit.
  */
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const M = require('../apps/engine_care/model');
+const M = require('../apps/aurelm_engine_care/model');
 
 const CFG = { coldThreshold: 65, hardTorque: 150, warmTarget: 90, shortCycleH: 1, socReserve: 15, maxKm: 10000, maxMonths: 12, maxHours: 180 };
 const T0 = 1.7e12;

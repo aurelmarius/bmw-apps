@@ -1,13 +1,13 @@
 'use strict';
 /**
- * Hybrid Cost's model (apps/hybrid_cost/model.js): node tests/hybrid_cost.test.js
+ * Hybrid Cost's model (apps/aurelm_hybrid_cost/model.js): node tests/hybrid_cost.test.js
  * Each test drives a Tracker with a made-up second-by-second drive; no car, no head unit.
  */
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const M = require('../apps/hybrid_cost/model');
+const M = require('../apps/aurelm_hybrid_cost/model');
 
 const CFG = { petrolPrice: 7.5, elecPrice: 0.8, purePetrolAvg: 8.5, monthlyKm: 1200 };
 const T0 = 1.7e12;
