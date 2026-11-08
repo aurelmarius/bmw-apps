@@ -3,7 +3,7 @@
   "name": "Aurel Marius BMW Apps",
   "components": [
     {
-      "id": "engine_care",
+      "id": "aurelm_engine_care",
       "kind": "app",
       "version": "1.5.2",
       "title": "Engine Care",
@@ -12,15 +12,15 @@
         "ID7"
       ],
       "artifact": {
-        "name": "engine_care@1.5.2.tgz",
-        "size": 570334,
-        "sha256": "c57644f3af3081373d611e13d80c1020038fef4004bf325682f2180fe0526c66",
-        "url": "packages/engine_care@1.5.2.tgz"
+        "name": "aurelm_engine_care@1.5.2.tgz",
+        "size": 570802,
+        "sha256": "f005b335d91355d9c8eb301d95cdf43d09333c95355a16fbe056e6737dcfad76",
+        "url": "packages/aurelm_engine_care@1.5.2.tgz"
       },
       "uninstallable": true
     },
     {
-      "id": "hybrid_cost",
+      "id": "aurelm_hybrid_cost",
       "kind": "app",
       "version": "1.1.2",
       "title": "Hybrid Cost",
@@ -29,10 +29,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "hybrid_cost@1.1.2.tgz",
-        "size": 566049,
-        "sha256": "30569341681fc2d6f1e094c67587a608ba8522b0ceb1ca24968b240488378469",
-        "url": "packages/hybrid_cost@1.1.2.tgz"
+        "name": "aurelm_hybrid_cost@1.1.2.tgz",
+        "size": 566753,
+        "sha256": "a4a92d1ec96d34ca497ccadc685e9f47c911880e06010ea79adb938bd820aae6",
+        "url": "packages/aurelm_hybrid_cost@1.1.2.tgz"
       },
       "uninstallable": true
     }
