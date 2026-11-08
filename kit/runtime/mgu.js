@@ -9,7 +9,8 @@
  *       ctx.ui.onClick('BTN_RESET', () => ...);
  *       ctx.loop('MAIN', 4, async () => ctx.ui.image('MAIN_GFX', canvas));
  *     },
- *     onEntry(reason, uuid) {   // optional: tile / favourite button pressed (reason ENTRY_POINT, BOOKMARK...)
+ *     onEntry(reason, uuid, key) {   // optional: tile / favourite button pressed (reason ENTRY_POINT, BOOKMARK...;
+ *                                    // key: ENTRY or one of app.json "entries")
  *       return true;            // false: don't open the screen
  *     },
  *   });
@@ -610,6 +611,7 @@ async function runInner(impl) {
         if (st && st.on) st.on('focus', (ev) => ui._setFocus(s.name, !(ev && ev.focus === false)));
     });
     ui.rhmi.on('applicationStackChanged', (stack) => {
+        ui.stack = stack;               // the HMI's last report (apps can show it for diagnostics)
         const shown = stack && Object.keys(stack).length > 0 && ('ROOT_APP' in stack);
         Promise.resolve().then(() => (shown ? app.registerHmiVisible() : app.unregisterHmiVisible()))
             .catch((e) => log.warn('hmi visible: ' + e));
@@ -633,12 +635,20 @@ async function runInner(impl) {
     } catch (e) { log.warn('no rhmiData/application.json: ' + e); }
     const mainState = ui.comp(mainName);
     const mapped = {};
-    await Promise.all(entryUuids.map((uuid) => ui.rhmi.mapEntryState(uuid, mainState)
+    // app.json "entries" with "map": false stay unmapped: the HMI opens nothing for them, the app only
+    // gets entryPointExecute (onEntry's third argument is the entry's key); the others open the main screen
+    const entrySpec = {};
+    (SPEC.entries || []).forEach((e) => { entrySpec[e.uuid] = e; });
+    const unmapped = (uuid) => !!(entrySpec[uuid] && entrySpec[uuid].map === false);
+    await Promise.all(entryUuids.filter((uuid) => !unmapped(uuid)).map((uuid) => ui.rhmi.mapEntryState(uuid, mainState)
         .then(() => { mapped[uuid] = true; log.info('mapped entry ' + uuid + ' -> ' + mainName); })
         .catch((e) => log.error('map entry state', e))));
     let opening = null;
     const openEntry = (uuid) => {
         if (opening) return opening;   // MainApp can send the same tap twice
+        // an unmapped entry whose onEntry still wants the screen: opened through the main entry (mapping it
+        // would make the HMI open it by itself from then on)
+        if (unmapped(uuid)) uuid = entryUuids.find((x) => !unmapped(x)) || uuid;
         const map = mapped[uuid] ? Promise.resolve() : ui.rhmi.mapEntryState(uuid, mainState).then(() => { mapped[uuid] = true; });
         opening = map
             .then(() => (mainState && mainState.updateResources ? mainState.updateResources().catch(() => {}) : null))
@@ -650,11 +660,12 @@ async function runInner(impl) {
     };
     // a tap on the home-screen widget opens the app
     widget.onTap(() => { if (entryUuids[0]) openEntry(entryUuids[0]); });
-    // impl.onEntry(reason, uuid): the app's tile or a favourite button (BOOKMARK) was pressed;
+    // impl.onEntry(reason, uuid, key): the app's tile or a favourite button (BOOKMARK) was pressed; key = the
+    // entry's key (ENTRY, or one of app.json "entries");
     // return false to leave the screen closed (the app did its job without it)
     const onEntry = (reason, uuid) => {
         if (!impl || typeof impl.onEntry !== 'function') return true;
-        try { return impl.onEntry(String(reason), uuid) !== false; } catch (e) { log.error('onEntry', e); return true; }
+        try { return impl.onEntry(String(reason), uuid, (entrySpec[uuid] && entrySpec[uuid].key) || 'ENTRY') !== false; } catch (e) { log.error('onEntry', e); return true; }
     };
     app.on('entryPointExecute', (uuid, reason, name) => {
         log.info('entry point ' + name + ' (' + reason + ')');

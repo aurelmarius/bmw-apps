@@ -447,8 +447,17 @@ def build(app_id, language='en'):
             body = file.read()
         with open(entry, 'wb') as file:
             file.write(credit.encode('utf-8') + body)
+    # entry points (tiles in the apps menu): the app's own, then app.json "entries" - each
+    # { "key", "title", "map" }: "map": false leaves it unmapped, so the HMI never opens a screen for it and
+    # the app only gets entryPointExecute (a tile or favourite button that does something without a screen)
+    entries = [{'key': 'ENTRY', 'uuid': u(app_id, 'entry'), 'textId': sid(app_id, 'TITLE'), 'map': True}]
+    for e in spec.get('entries', []):
+        strings[sid(app_id, 'ENTRY_' + e['key'])] = e['title']
+        entries.append({'key': e['key'], 'uuid': u(app_id, 'entry-' + e['key'].lower()),
+                        'textId': sid(app_id, 'ENTRY_' + e['key']), 'map': e.get('map', True) is not False})
     rt_spec = {k: spec.get(k) for k in ('id', 'title', 'version', 'screens', 'settings', 'config', 'startWidget')}
     rt_spec['stateIds'] = state_ids
+    rt_spec['entries'] = [{'key': e['key'], 'uuid': e['uuid'], 'map': e['map']} for e in entries]
     json.dump(rt_spec, open(os.path.join(src, 'javascript', 'kit', 'app-spec.json'), 'w', encoding='utf-8', newline='\n'), indent=1)
     locale = {'language': language, 'strings': load_locale(language)}
     if language == 'zh-CN':
@@ -470,11 +479,11 @@ def build(app_id, language='en'):
             'version': ver, 'defaultLanguage': 'en_GB',
             'stringBundleUuid': u(app_id, 'strings'), 'resourceBundleUuid': u(app_id, 'resources'),
             'entryPoints': [{
-                'name': app_id.upper() + '_ENTRY', 'uuid': u(app_id, 'entry'), 'textId': sid(app_id, 'TITLE'),
+                'name': app_id.upper() + '_' + e['key'], 'uuid': e['uuid'], 'textId': e['textId'],
                 'icon': icon, 'insertionStateId': 20974, 'insertionFocusId': 2, 'insertionMode': 'INSERT_BELOW',
-                'insertionOrder': 0, 'insertionPriority': 0, 'previewType': 'NONE', 'bookmarkable': True,
+                'insertionOrder': i, 'insertionPriority': 0, 'previewType': 'NONE', 'bookmarkable': True,
                 'private': False, 'appearance': 'DEFAULT', 'isGroupHeader': False, 'insertionGroup': 0,
-            }],
+            } for i, e in enumerate(entries)],
         },
     }
     pr = os.path.join(src, 'rhmiData')
