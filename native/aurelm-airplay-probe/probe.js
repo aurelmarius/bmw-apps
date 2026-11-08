@@ -30,8 +30,9 @@ const dgram = require('dgram');
 const dns = require('./dns');
 const ap = require('./airplay');
 const nft = require('./nft');
+const sockgroup = require('./sockgroup');
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -397,18 +398,11 @@ function createProbe(opts) {
 
 /* ---------------- control socket ---------------- */
 
-function gidOf(group) {
-    try {
-        const l = fs.readFileSync('/etc/group', 'utf8').split('\n').find((x) => x.split(':')[0] === group);
-        return l ? Number(l.split(':')[2]) : null;
-    } catch (e) { return null; }
-}
-
 /**
  * The control socket: systemd's (socket activation, fd 3) when it handed one over, else a socket of
  * our own at sockPath (a run by hand, the tests). onRequest() is called for every request.
  */
-function serveControl(probe, sockPath, group, log, onRequest) {
+function serveControl(probe, sockPath, log, onRequest) {
     const srv = net.createServer((c) => {
         let buf = '';
         c.setEncoding('utf8');
@@ -427,18 +421,16 @@ function serveControl(probe, sockPath, group, log, onRequest) {
         });
         c.on('error', () => { /* client went */ });
     });
+    // the app's own group, never tm_oap_app (every app has that): sockgroup.js
+    const ownGroup = () => {
+        try { const g = sockgroup.apply(sockPath); log('control socket ' + sockPath + ': ' + (g === null ? 'root only (the app is not installed)' : 'group ' + g)); } catch (e) { log('control socket mode: ' + e.message); }
+    };
     if (process.env.LISTEN_FDS === '1' && Number(process.env.LISTEN_PID) === process.pid) {
-        srv.listen({ fd: 3 }, () => log('control socket from systemd'));
+        srv.listen({ fd: 3 }, () => { log('control socket from systemd'); ownGroup(); });
         return srv;
     }
     try { fs.unlinkSync(sockPath); } catch (e) { /* none */ }
-    srv.listen(sockPath, () => {
-        const gid = gidOf(group);
-        try {
-            if (gid != null) { fs.chownSync(sockPath, 0, gid); fs.chmodSync(sockPath, 0o660); } else { fs.chmodSync(sockPath, 0o600); log('no group ' + group + ': ' + sockPath + ' is root only'); }
-        } catch (e) { log('control socket mode: ' + e.message); }
-        log('control socket ' + sockPath);
-    });
+    srv.listen(sockPath, ownGroup);
     return srv;
 }
 
@@ -465,7 +457,7 @@ function main() {
     });
     // what an earlier run in this boot left in the firewall goes first (a reboot clears it anyway)
     probe.cleanupSync();
-    serveControl(probe, sockPath, process.env.PROBE_GROUP || 'tm_oap_app', log, () => { lastRequest = Date.now(); });
+    serveControl(probe, sockPath, log, () => { lastRequest = Date.now(); });
     log('aurelm-airplay-probe ' + VERSION + ' on node ' + process.version + ', receiver ' + probe.identity.deviceid);
     const bye = (why, code) => {
         log('exit: ' + why);

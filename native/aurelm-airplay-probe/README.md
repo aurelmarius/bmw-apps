@@ -53,7 +53,13 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 - **Node 8.9.4** (the 2019 head units' `/usr/bin/node`): plain Node 8 JavaScript; the tests run on
   8.9.4 too.
 - **No umask trap:** the service writes only its own files under `/var/opt/aurelm-airplay-probe`, read
-  by root; the app reaches it through the socket, whose mode and group systemd sets.
+  by root; the app reaches it through the socket, whose mode and owner are set explicitly.
+- **The socket is the app's alone:** every OAP app is in `tm_oap_app`, so a socket in that group would
+  let any installed app start the test and open the ports (Vizualyse/idrive-apps,
+  `knowledge/head-unit.md`). `sockgroup.js` (the socket's `ExecStartPost`, and the service at each
+  start) gives it the AirPlay Test app's own group, found by its package name under
+  `/var/opt/public/oap`, mode 0660; root only (0600) while the app is not installed. The group is read
+  when the socket starts: after a fresh install, restart the head unit once.
 - **No boot ordering:** nothing waits for it, it waits for nothing of the car's; it does not run at boot.
 - **Bounded:** nice 10, idle I/O, 20% CPU, 64 MiB, 16 tasks.
 - **CarPlay:** during a test the service shares udp 5353 with the car's own mDNS responder
@@ -69,6 +75,7 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 | `nft.js` | the firewall rules |
 | `check.js` | the deploy tool's check: the service answers on its socket |
 | `cleanup.js` | `ExecStopPost` and `deactivate`: removes every rule of the test, never fails |
+| `sockgroup.js` | the control socket's group: the app's own, never `tm_oap_app` |
 
 Control: one JSON object per line on the socket, `{"cmd":"status"}`, `{"cmd":"start","minutes":15}`,
 `{"cmd":"stop"}`; the reply is the status. The last test's status is kept in

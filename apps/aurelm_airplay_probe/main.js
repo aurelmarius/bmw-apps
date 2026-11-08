@@ -118,7 +118,7 @@ mgu.run({
         }
 
         function draw(cv, t) {
-            const v = st ? st.verdict : { code: 'none', text: 'The AirPlay network test service does not answer. Install it from the Store (it comes with this app) and restart the head unit if the Store asks.' };
+            const v = st ? st.verdict : { code: 'none', text: 'The AirPlay network test service does not answer. It comes with this app from the Store: restart the head unit once after installing (the service starts listening for this app at the next start).' };
             const vc = VERDICT_COLOR[v.code] || (v.code === 'idle' ? t.accent : RED);
             // verdict
             cv.fillRect(24, 58, 1552, 96, withAlpha(vc, 0.14));

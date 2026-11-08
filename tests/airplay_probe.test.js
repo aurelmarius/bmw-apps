@@ -198,7 +198,7 @@ test('service: started as systemd would (control socket, check.js), stopped with
     const { spawn, spawnSync } = require('child_process');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-'));
     const sock = path.join(tmp, 'ctl.sock');
-    const env = Object.assign({}, process.env, { PROBE_SOCK: sock, PROBE_STATE: tmp, PROBE_NFT: 'off', PROBE_GROUP: 'no-such-group' });
+    const env = Object.assign({}, process.env, { PROBE_SOCK: sock, PROBE_STATE: tmp, PROBE_NFT: 'off' });
     const svc = spawn(process.execPath, [path.join(DIR, 'probe.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     svc.stdout.on('data', (d) => { out += d; });
@@ -207,7 +207,7 @@ test('service: started as systemd would (control socket, check.js), stopped with
         const r = spawnSync(process.execPath, [path.join(DIR, 'check.js'), sock], { encoding: 'utf8', timeout: 20000 });
         assert.strictEqual(r.status, 0, r.stdout + r.stderr + out);
         assert.ok(/answers: idle/.test(r.stdout), r.stdout);
-        // root only without the app's group
+        // root only while the app is not installed (no /var/opt/public/oap here)
         assert.strictEqual(fs.statSync(sock).mode & 0o777, 0o600);
     } finally {
         const code = await new Promise((res) => { svc.on('exit', (c) => res(c)); svc.kill('SIGTERM'); });
@@ -220,6 +220,28 @@ test('cleanup: never fails, also without nft', () => {
     const { spawnSync } = require('child_process');
     const r = spawnSync(process.execPath, [path.join(DIR, 'cleanup.js')], { encoding: 'utf8', env: Object.assign({}, process.env, { PATH: '/nonexistent' }) });
     assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+});
+
+test('sockgroup: the socket gets the app\'s own group, root only without the app', () => {
+    const sg = require(path.join(DIR, 'sockgroup'));
+    const oap = fs.mkdtempSync(path.join(os.tmpdir(), 'oap-'));
+    const sock = path.join(oap, 's.sock');
+    fs.writeFileSync(sock, '');
+    const app = (uid, name) => {
+        fs.mkdirSync(path.join(oap, 'oap_' + uid));
+        fs.mkdirSync(path.join(oap, 'oap_' + uid, 'source'));
+        fs.writeFileSync(path.join(oap, 'oap_' + uid, 'source', 'package.json'), JSON.stringify({ name }));
+        if (process.getuid && process.getuid() === 0) fs.chownSync(path.join(oap, 'oap_' + uid), uid, uid);
+    };
+    app(12300, 'some_other_app');
+    assert.strictEqual(sg.apply(sock, oap), null);
+    assert.strictEqual(fs.statSync(sock).mode & 0o777, 0o600);
+    app(12345, 'aurelm_airplay_probe');
+    const want = fs.statSync(path.join(oap, 'oap_12345')).gid;
+    if (want === 0) return;   // not root here: no folder of another group to find
+    assert.strictEqual(sg.apply(sock, oap), 12345);
+    assert.strictEqual(fs.statSync(sock).gid, 12345);
+    assert.strictEqual(fs.statSync(sock).mode & 0o777, 0o660);
 });
 
 (async () => {

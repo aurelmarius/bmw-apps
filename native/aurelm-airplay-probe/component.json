@@ -1,7 +1,7 @@
 {
   "id": "aurelm-airplay-probe",
   "kind": "tool",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "GPL-3.0-or-later",
   "title": "AirPlay network test service",
   "description": "For the app AirPlay Test: announces a test AirPlay receiver over mDNS and notes whether an iPhone finds and reaches it (tcp 7000/7100). Opens the firewall for those ports only while a test runs. Not a receiver: nothing is streamed.",
@@ -31,6 +31,11 @@
     {
       "path": "nft.js",
       "from": "nft.js",
+      "mode": "0644"
+    },
+    {
+      "path": "sockgroup.js",
+      "from": "sockgroup.js",
       "mode": "0644"
     },
     {
