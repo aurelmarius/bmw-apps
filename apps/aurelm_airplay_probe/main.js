@@ -73,7 +73,7 @@ function steps(s) {
         { label: 'Wi-Fi network', state: used.length ? 'ok' : off ? 'off' : 'bad',
             detail: used.length ? used.map((i) => i.name + ' ' + i.ip + ' (' + i.kind + ')').join(', ') : 'none: head unit on the iPhone hotspot, or iPhone on the car Wi-Fi' },
         { label: 'Firewall', state: fw.state === 'open' ? 'ok' : fw.state === 'failed' ? 'bad' : off ? 'off' : 'wait',
-            detail: fw.state === 'open' ? (fw.chains || []).length + ' chains open for 7000, 7100, 5353' : fw.state === 'failed' ? fw.error : fw.state || '' },
+            detail: fw.state === 'open' ? (fw.chains || []).length + ' chains open for tcp ' + ((tcp.listening || []).join(', ') || '-') + ', udp 5353' : fw.state === 'failed' ? fw.error : fw.state || '' },
         { label: 'mDNS', state: m.mode === 'own' ? 'ok' : m.mode === 'failed' ? 'bad' : off ? 'off' : 'wait',
             detail: m.mode === 'own' ? 'announcing "' + s.name + '", ' + m.answered + ' answers sent' : m.mode === 'failed' ? m.error + ((m.holders || []).length ? ', held by ' + m.holders.join(', ') : '') : '' },
         { label: 'Devices heard', state: (m.peers || []).length ? 'ok' : off ? 'off' : 'wait',
@@ -81,7 +81,7 @@ function steps(s) {
         { label: 'AirPlay query', state: lq ? 'ok' : off ? 'off' : 'wait',
             detail: lq ? 'from ' + lq.ip + (lq.iface ? ' on ' + lq.iface : '') + ', ' + ago(lq.at, s.now) + ' (' + m.airplayQueries + ' in all)' : 'open Screen Mirroring on the iPhone' },
         { label: 'iPhone connected', state: last ? 'ok' : off ? 'off' : 'wait',
-            detail: last ? last.ip + ' -> ' + last.port + ': ' + (last.request || '') + (last.agent ? ' (' + last.agent + ')' : '') : 'tap "' + s.name + '" in Screen Mirroring' },
+            detail: last ? last.ip + ' -> ' + last.port + ': ' + (last.request || '') + (last.agent ? ' (' + last.agent + ')' : '') : tcp.port ? 'tap "' + s.name + '" in Screen Mirroring (receiver on tcp ' + tcp.port + ')' : 'no free port: ' + (tcp.error || '') },
     ];
 }
 

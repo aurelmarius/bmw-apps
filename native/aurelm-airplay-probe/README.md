@@ -11,8 +11,8 @@ most):
 
 1. **Firewall.** Accept rules go at the top of every IPv4 input and output base chain (the unit's own
    `ip filter`, which its firewall drops in by default, and mgu-uplink's `inet mgu_uplink`, which lets
-   nothing in), for the Wi-Fi-side interfaces only: in, tcp 7000, 7100 (AirPlay) and udp 5353 (mDNS);
-   out, tcp 7000, 7100 and udp 5353 from root only (this service, not the car's own responder). Only
+   nothing in), for the Wi-Fi-side interfaces only: in, the receiver's tcp port (AirPlay) and udp 5353
+   (mDNS); out, that tcp port and udp 5353 from root only (this service, not the car's own responder). Only
    accepts, never a drop. Every rule carries the comment `aurelm-airplay-probe`; the rules are put back
    when a ruleset load drops them, and removed when the test ends.
 2. **mDNS.** A responder on udp 5353 announces `BMW iDrive test` as `_airplay._tcp` and `_raop._tcp`
@@ -20,7 +20,11 @@ most):
    AirPlay query (an iPhone asks when Control Center > Screen Mirroring opens), and asks every 10 s who
    is there (`_airplay`, `_raop`, `_companion-link`, `_apple-mobdev2`). Should port 5353 be taken by a
    responder that does not share it, the status names the process that holds it.
-3. **AirPlay ports.** tcp 7000 and 7100 note who connects and the first request (`GET /info`,
+3. **The receiver's port.** AirPlay's usual tcp 7000 is taken on the head unit: the car's own CarPlay
+   receiver holds it (found in the car, 2026-11-08: the iPhone listed the test receiver and its
+   connection to 7000 reached CarPlay, "Unable to Connect"). The receiver therefore listens on tcp 7300,
+   or the first free one of 7350, 7400, 47000, and announces that port (mDNS SRV); the log names the
+   process that holds 7000 and any port passed over. The port notes who connects and the first request (`GET /info`,
    `POST /pair-setup`, ...) and answer `503`. The iPhone then says it could not connect: expected.
 
 **Interfaces used:** names `wlan*` (the car's hotspot is `wlan_bridge`), `p2p*`, `wfd*`, `uap*`,

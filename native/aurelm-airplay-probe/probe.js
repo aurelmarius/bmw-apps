@@ -4,16 +4,17 @@
  *
  * A network test, not a receiver. While a test runs (started from the app, at most `minutes`):
  *
- *   1. the firewall gets accept rules for AirPlay (tcp 7000, 7100) and mDNS (udp 5353) on the
+ *   1. the firewall gets accept rules for AirPlay (the receiver's tcp port) and mDNS (udp 5353) on the
  *      Wi-Fi-side interfaces (nft.js), removed again when the test ends;
  *   2. an mDNS responder announces "BMW iDrive test" as an AirPlay receiver (_airplay._tcp,
  *      _raop._tcp) on those interfaces, answers queries for it, and notes every AirPlay query it
  *      hears (an iPhone asks when Screen Mirroring opens) and every Apple device that answers its
  *      own queries;
- *   3. tcp 7000 and 7100 listen, note who connects and what they ask first (GET /info,
+ *   3. the receiver's tcp port (7300; the next free one of 7350, 7400, 47000 when taken: the car's own
+ *      CarPlay receiver holds 7000, AirPlay's usual port) listens, notes who connects and what they ask first (GET /info,
  *      POST /pair-setup, ...), and answer "503": the iPhone then says it could not connect.
  *
- * The verdict: an iPhone that connected to tcp 7000 found the receiver and reached it, which is
+ * The verdict: an iPhone that connected to that port found the receiver and reached it, which is
  * everything a real receiver needs from the network.
  *
  * Runs as root (systemd, aurelm-airplay-probe.service), started by the app's connection to
@@ -32,7 +33,7 @@ const ap = require('./airplay');
 const nft = require('./nft');
 const sockgroup = require('./sockgroup');
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -63,16 +64,17 @@ function interfaces(only, raw) {
     return out;
 }
 
-/** which process holds udp `port` (from /proc): ['mdnsd (412)', ...] */
-function portHolders(port) {
+/** which process holds `port` (from /proc; tcp: listening sockets only): ['mdnsd (412)', ...] */
+function portHolders(port, proto) {
+    const tcp = proto === 'tcp';
     const want = ':' + ('0000' + port.toString(16).toUpperCase()).slice(-4);
     const inodes = {};
-    ['/proc/net/udp', '/proc/net/udp6'].forEach((f) => {
+    (tcp ? ['/proc/net/tcp', '/proc/net/tcp6'] : ['/proc/net/udp', '/proc/net/udp6']).forEach((f) => {
         let t = '';
         try { t = fs.readFileSync(f, 'utf8'); } catch (e) { return; }
         t.split('\n').slice(1).forEach((l) => {
             const c = l.trim().split(/\s+/);
-            if (c.length > 9 && c[1].slice(-5) === want) inodes['socket:[' + c[9] + ']'] = true;
+            if (c.length > 9 && c[1].slice(-5) === want && (!tcp || c[3] === '0A')) inodes['socket:[' + c[9] + ']'] = true;
         });
     });
     if (!Object.keys(inodes).length) return [];
@@ -111,7 +113,7 @@ function verdict(s) {
     const used = s.ifaces.filter((i) => i.used);
     if (!used.length) return { code: 'no-iface', text: 'No Wi-Fi network: connect the head unit to the iPhone hotspot (mgu-uplink), or the iPhone to the car Wi-Fi' };
     if (s.mdns.mode === 'failed') return { code: 'mdns-failed', text: 'mDNS port 5353 is taken: ' + (s.mdns.error || '') + (s.mdns.holders.length ? ' (held by ' + s.mdns.holders.join(', ') + ')' : '') };
-    if (!s.tcp.listening.length) return { code: 'listening', text: 'AirPlay ports could not be opened: ' + (s.tcp.error || '') };
+    if (!s.tcp.port) return { code: 'listening', text: 'No AirPlay port could be opened: ' + (s.tcp.error || '') };
     if (s.fw.state === 'failed') return { code: 'firewall-failed', text: 'Firewall rules failed: ' + (s.fw.error || '') };
     if (s.mdns.airplayQueries > 0) {
         const q = s.mdns.lastAirplayQuery || {};
@@ -124,11 +126,11 @@ function verdict(s) {
 /* ---------------- the probe ---------------- */
 
 /**
- * opts: { stateDir, port (7000), extraPorts ([7100]), mdnsPort (5353), nft ('nft' | false),
+ * opts: { stateDir, ports ([7300, 7350, 7400, 47000]: the first free one is the receiver's), mdnsPort (5353), nft ('nft' | false),
  *         only ([iface names] or null), ignoreSelf (true), loopback (false: our multicast not back to this host), name, log, onChange, onStop, now }
  */
 function createProbe(opts) {
-    const o = Object.assign({ port: 7000, extraPorts: [7100], mdnsPort: 5353, nft: 'nft', only: null, ignoreSelf: true, name: 'BMW iDrive test' }, opts || {});
+    const o = Object.assign({ ports: [7300, 7350, 7400, 47000], mdnsPort: 5353, nft: 'nft', only: null, ignoreSelf: true, name: 'BMW iDrive test' }, opts || {});
     const now = o.now || Date.now;
     const lines = [];
     const log = (s) => {
@@ -156,7 +158,7 @@ function createProbe(opts) {
         return {
             active: false, startedAt: null, endsAt: null, ifaces: [],
             mdns: { mode: 'off', error: null, holders: [], packets: 0, queries: 0, airplayQueries: 0, answered: 0, announced: 0, lastAirplayQuery: null, peers: [] },
-            tcp: { listening: [], error: null, connections: 0, last: null, requests: [] },
+            tcp: { port: null, listening: [], busy: [], error: null, connections: 0, last: null, requests: [] },
             fw: { state: 'off', error: null, chains: [], removed: 0 },
         };
     }
@@ -192,7 +194,7 @@ function createProbe(opts) {
         if (!o.nft) { st.fw.state = 'skipped'; return; }
         const names = usedIfaces().map((i) => i.name).filter((n, i, a) => a.indexOf(n) === i);
         try {
-            const res = nft.apply(names, { nft: o.nft });
+            const res = nft.apply(names, { nft: o.nft, tcpPorts: st.tcp.listening });
             st.fw.chains = res.map((r) => ({ chain: r.chain, ok: r.ok, rules: r.rules, error: r.error }));
             const bad = res.filter((r) => !r.ok);
             st.fw.state = bad.length ? 'failed' : res.length ? 'open' : 'no-chains';
@@ -226,7 +228,7 @@ function createProbe(opts) {
     function announce(goodbye) {
         if (!sock || st.mdns.mode !== 'own') return Promise.resolve();
         return Promise.all(usedIfaces().map((i) => {
-            const a = ap.announcement(id, o.port, i.ip, goodbye);
+            const a = ap.announcement(id, st.tcp.port, i.ip, goodbye);
             st.mdns.announced++;
             return send(dns.encodeResponse(a), o.mdnsPort, MDNS_GROUP, i.ip);
         }));
@@ -266,7 +268,7 @@ function createProbe(opts) {
         }
         const via = iface || usedIfaces()[0];
         if (!via) return;
-        const a = ap.answer(id, o.port, via.ip, p.questions);
+        const a = ap.answer(id, st.tcp.port, via.ip, p.questions);
         if (!a) return;
         st.mdns.answered++;
         if (rinfo.port !== o.mdnsPort) {
@@ -332,12 +334,25 @@ function createProbe(opts) {
         c.on('error', () => { /* the phone went */ });
         c.on('close', () => clearTimeout(t));
     }
+    /** listens on `port`: true, or false (taken: who holds it goes into tcp.busy and the log) */
     function listen(port) {
         return new Promise((res) => {
             const srv = net.createServer((c) => onConnection(c, port));
-            srv.on('error', (e) => { st.tcp.error = port + ': ' + (e.code || e.message); log('AirPlay: listen ' + port + ' failed: ' + (e.code || e.message)); res(); });
-            srv.listen(port, '0.0.0.0', () => { servers.push(srv); st.tcp.listening.push(port); res(); });
+            srv.on('error', (e) => {
+                const holders = e.code === 'EADDRINUSE' ? portHolders(port, 'tcp') : [];
+                st.tcp.busy.push({ port, error: e.code || e.message, holders });
+                st.tcp.error = port + ': ' + (e.code || e.message) + (holders.length ? ' (' + holders.join(', ') + ')' : '');
+                log('AirPlay: port ' + port + ' ' + (e.code || e.message) + (holders.length ? ', held by ' + holders.join(', ') : ''));
+                res(false);
+            });
+            srv.listen(port, '0.0.0.0', () => { servers.push(srv); st.tcp.listening.push(port); res(true); });
         });
+    }
+    /** the receiver's port: the first of o.ports that is free */
+    async function choosePort() {
+        for (let i = 0; i < o.ports.length; i++) {
+            if (await listen(o.ports[i])) { st.tcp.port = o.ports[i]; log('AirPlay: receiver on tcp ' + o.ports[i]); return; }
+        }
     }
 
     /* ----- the test ----- */
@@ -353,8 +368,11 @@ function createProbe(opts) {
         st.ifaces = interfaces(o.only);
         log('interfaces: ' + (usedIfaces().map((i) => i.name + '=' + i.ip + ' (' + i.kind + ')').join(', ') || 'none') +
             (st.ifaces.filter((i) => !i.used).length ? '; not used: ' + st.ifaces.filter((i) => !i.used).map((i) => i.name + '=' + i.ip).join(', ') : ''));
-        firewall();
-        await Promise.all([o.port].concat(o.extraPorts || []).map(listen));
+        // AirPlay's usual port: who holds it on this unit (the car's own CarPlay receiver, found on the car)
+        const h7000 = portHolders(7000, 'tcp');
+        if (h7000.length) log('AirPlay: tcp 7000 is held by ' + h7000.join(', '));
+        await choosePort();
+        firewall();   // after the port is known: the rules open the one the receiver listens on
         await startMdns();
         resetEnd();
         // announce three times a second apart, then every 30 s; ask who is there every 10 s

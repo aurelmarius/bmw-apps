@@ -2,7 +2,7 @@
   "id": "aurelm_airplay_probe",
   "title": "AirPlay Test",
   "description": "Network test for a future AirPlay receiver: can an iPhone find and reach the head unit? Announces a test receiver and shows what the iPhone does. Needs the AirPlay network test service.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "vendor": "custom",
   "loggingId": "OA9X",
   "iconGlyph": "AP",

@@ -49,7 +49,7 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ### 🧪 AirPlay Test (`aurelm_airplay_probe`), experimental
 *A network test for a future AirPlay receiver: can an iPhone find the head unit and connect to it?*
 
-Not a receiver: nothing is streamed. The app and its root service (`native/aurelm-airplay-probe`) announce a test receiver, **BMW iDrive test**, on the Wi-Fi networks for 15 minutes and show step by step what gets through: the network, the firewall, mDNS, the iPhone's AirPlay query and its connection. While the test runs, the service opens the firewall for tcp 7000/7100 and udp 5353 on the Wi-Fi interfaces only, and closes it again when the test ends.
+Not a receiver: nothing is streamed. The app and its root service (`native/aurelm-airplay-probe`) announce a test receiver, **BMW iDrive test**, on the Wi-Fi networks for 15 minutes and show step by step what gets through: the network, the firewall, mDNS, the iPhone's AirPlay query and its connection. While the test runs, the service opens the firewall for its AirPlay port (tcp 7300; 7000 is the car's own CarPlay receiver's) and udp 5353 on the Wi-Fi interfaces only, and closes it again when the test ends.
 
 It is not in the releases: it has its own Store catalog on the development branch.
 

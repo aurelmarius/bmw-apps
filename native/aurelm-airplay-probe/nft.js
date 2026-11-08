@@ -7,8 +7,8 @@
  * the test puts its accept rules at the top of every IPv4 input and output base chain, for the
  * interfaces it uses and the ports it needs only:
  *
- *   input   tcp dport 7000, 7100 (AirPlay), udp dport 5353 (mDNS)
- *   output  tcp sport 7000, 7100; udp dport 5353 and udp sport 5353 from root (this service) only
+ *   input   tcp dport <the receiver's port> (AirPlay), udp dport 5353 (mDNS)
+ *   output  tcp sport <the receiver's port>; udp dport 5353 and udp sport 5353 from root (this service) only
  *
  * Each rule carries the comment COMMENT; remove() deletes every rule with it, wherever it is, so a
  * stop, a crash and the next start all leave the firewall as the unit had it. mgu-uplink rewrites
@@ -18,7 +18,6 @@
 const { execFileSync } = require('child_process');
 
 const COMMENT = 'aurelm-airplay-probe';
-const PORTS_TCP = '{ 7000, 7100 }';
 
 /**
  * nft through `sh -c 'ulimit -c 1; exec nft ...'`: a crash of nft pipes no core dump to the unit's crash
@@ -46,19 +45,19 @@ function parse(text) {
     return chains;
 }
 
-/** the rules for one base chain (its hook) and one interface */
-function rulesFor(hook, ifname) {
+/** the rules for one base chain (its hook), one interface and the receiver's tcp ports */
+function rulesFor(hook, ifname, tcpPorts) {
     const q = JSON.stringify(String(ifname));
-    if (hook === 'input') return [
-        'iifname ' + q + ' tcp dport ' + PORTS_TCP + ' accept',
+    const ports = (tcpPorts || []).map(Number).filter((n) => n > 0 && n < 65536);
+    const set = '{ ' + ports.join(', ') + ' }';
+    if (hook === 'input') return (ports.length ? ['iifname ' + q + ' tcp dport ' + set + ' accept'] : []).concat([
         'iifname ' + q + ' udp dport 5353 accept',
-    ];
+    ]);
     // mDNS out: only this service's own socket (root), not the car's own responder
-    if (hook === 'output') return [
-        'oifname ' + q + ' tcp sport ' + PORTS_TCP + ' accept',
+    if (hook === 'output') return (ports.length ? ['oifname ' + q + ' tcp sport ' + set + ' accept'] : []).concat([
         'oifname ' + q + ' meta skuid 0 udp dport 5353 accept',
         'oifname ' + q + ' meta skuid 0 udp sport 5353 accept',
-    ];
+    ]);
     return [];
 }
 
@@ -74,7 +73,7 @@ function apply(ifnames, opts) {
     const chains = parse(run(['-a', 'list', 'ruleset'], o.nft));
     return targets(chains).map((c) => {
         const want = [];
-        ifnames.forEach((i) => rulesFor(c.hook, i).forEach((r) => want.push(r)));
+        ifnames.forEach((i) => rulesFor(c.hook, i, o.tcpPorts).forEach((r) => want.push(r)));
         const res = { chain: c.family + ' ' + c.table + ' ' + c.chain, hook: c.hook, rules: want.length, ok: true, error: null, changed: false };
         if (c.ours.length === want.length) return res;
         try {

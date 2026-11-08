@@ -5,15 +5,15 @@
     {
       "id": "aurelm-airplay-probe",
       "kind": "tool",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "title": "AirPlay network test service",
-      "description": "For the app AirPlay Test: announces a test AirPlay receiver over mDNS and notes whether an iPhone finds and reaches it (tcp 7000/7100). Opens the firewall for those ports only while a test runs. Not a receiver: nothing is streamed.",
+      "description": "For the app AirPlay Test: announces a test AirPlay receiver over mDNS and notes whether an iPhone finds and reaches it (on tcp 7300: the car's CarPlay holds 7000). Opens the firewall for that port and mDNS only while a test runs. Not a receiver: nothing is streamed.",
       "author": "aurelmarius",
       "artifact": {
-        "name": "aurelm-airplay-probe@0.3.0.tgz",
-        "size": 18469,
-        "sha256": "b18babd5a3c9b6e4454d0a278f45efd9b231daf56fbb948511c411157f7d7ab8",
-        "url": "aurelm-airplay-probe@0.3.0.tgz"
+        "name": "aurelm-airplay-probe@0.4.0.tgz",
+        "size": 19074,
+        "sha256": "d548370860278da83e4444513074def7b112adf1a1c4a618f07e9d01fb759e88",
+        "url": "aurelm-airplay-probe@0.4.0.tgz"
       },
       "requires": {
         "mgu-deploy": "0.7.0"
@@ -26,18 +26,18 @@
     {
       "id": "aurelm_airplay_probe",
       "kind": "app",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "title": "AirPlay Test",
       "description": "Network test for a future AirPlay receiver: can an iPhone find and reach the head unit? Announces a test receiver and shows what the iPhone does. Needs the AirPlay network test service.",
       "author": "aurelmarius",
       "artifact": {
-        "name": "aurelm_airplay_probe@0.3.0.tgz",
-        "size": 554543,
-        "sha256": "25909c2e889cf1a11acf5557daec2fc605db37ee925be79e018f80be30eb3e99",
-        "url": "aurelm_airplay_probe@0.3.0.tgz"
+        "name": "aurelm_airplay_probe@0.4.0.tgz",
+        "size": 554563,
+        "sha256": "c5c1384d5873910d0976104c1c6f869fede9df264c9664da5b3cd7d20180dab2",
+        "url": "aurelm_airplay_probe@0.4.0.tgz"
       },
       "requires": {
-        "aurelm-airplay-probe": "0.3.0"
+        "aurelm-airplay-probe": "0.4.0"
       },
       "uninstallable": true,
       "mguHmi": [

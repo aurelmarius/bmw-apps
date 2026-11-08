@@ -91,14 +91,16 @@ test('nft: rules go at the top of every IPv4 input and output chain, and come ou
     const chains = nft.targets(nft.parse(fs.readFileSync(listing, 'utf8')));
     assert.deepStrictEqual(chains.map((c) => c.family + ' ' + c.table + ' ' + c.chain), ['ip filter input', 'ip filter output', 'inet mgu_uplink input']);
 
-    const res = nft.apply(['wlan0'], { nft: fake });
+    const res = nft.apply(['wlan0'], { nft: fake, tcpPorts: [7300] });
     assert.ok(res.every((r) => r.ok && r.changed));
     const lines = fs.readFileSync(calls, 'utf8').trim().split('\n');
     // the old rule in ip filter output goes, then 2 + 3 + 2 inserts
     assert.ok(lines.indexOf('delete rule ip filter output handle 9') >= 0);
     const inserts = lines.filter((l) => l.indexOf('insert rule') === 0);
     assert.strictEqual(inserts.length, 7);
-    assert.ok(inserts.indexOf('insert rule inet mgu_uplink input iifname "wlan0" tcp dport { 7000, 7100 } accept comment "aurelm-airplay-probe"') >= 0);
+    assert.ok(inserts.indexOf('insert rule inet mgu_uplink input iifname "wlan0" tcp dport { 7300 } accept comment "aurelm-airplay-probe"') >= 0);
+    // no receiver port (none was free): mDNS only
+    assert.deepStrictEqual(nft.rulesFor('input', 'wlan0', []), ['iifname "wlan0" udp dport 5353 accept']);
     // mDNS out only from this service (root)
     assert.ok(inserts.indexOf('insert rule ip filter output oifname "wlan0" meta skuid 0 udp dport 5353 accept comment "aurelm-airplay-probe"') >= 0);
 
@@ -121,9 +123,10 @@ test('probe: interfaces are classified, only Wi-Fi-side ones used', () => {
 });
 
 test('probe: the verdict', () => {
-    const base = () => ({ active: true, name: 'X', ifaces: [{ name: 'wlan0', used: true }], mdns: { mode: 'own', holders: [], airplayQueries: 0, peers: [] }, tcp: { listening: [7000], connections: 0 }, fw: { state: 'open' } });
+    const base = () => ({ active: true, name: 'X', ifaces: [{ name: 'wlan0', used: true }], mdns: { mode: 'own', holders: [], airplayQueries: 0, peers: [] }, tcp: { port: 7300, listening: [7300], connections: 0 }, fw: { state: 'open' } });
     assert.strictEqual(P.verdict(Object.assign(base(), { active: false })).code, 'idle');
     assert.strictEqual(P.verdict(Object.assign(base(), { ifaces: [] })).code, 'no-iface');
+    assert.strictEqual(P.verdict(Object.assign(base(), { tcp: { port: null, listening: [], connections: 0, error: '47000: EADDRINUSE' } })).code, 'listening');
     assert.strictEqual(P.verdict(base()).code, 'waiting');
     const s = base(); s.mdns.peers = [{ ip: '1.2.3.4' }];
     assert.strictEqual(P.verdict(s).code, 'heard-phone');
@@ -143,15 +146,21 @@ function freePort(type) {
     });
 }
 
-test('probe: an mDNS query is answered and a connection is noted (loopback)', async () => {
-    const port = await freePort('tcp'), port2 = await freePort('tcp'), mdnsPort = await freePort('udp');
+test('probe: a taken port is passed over, an mDNS query is answered, a connection is noted (loopback)', async () => {
+    const taken = await freePort('tcp'), port = await freePort('tcp'), mdnsPort = await freePort('udp');
+    // the first port is held (as the car's CarPlay holds 7000): the next one is the receiver's
+    const holder = await new Promise((res) => { const h = net.createServer().listen(taken, '0.0.0.0', () => res(h)); });
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'probe-'));
-    const probe = P.createProbe({ stateDir: tmp, port, extraPorts: [port2], mdnsPort, nft: false, only: ['lo'], ignoreSelf: false, name: 'Test Car' });
+    const probe = P.createProbe({ stateDir: tmp, ports: [taken, port], mdnsPort, nft: false, only: ['lo'], ignoreSelf: false, name: 'Test Car' });
     try {
         const s0 = await probe.start(1);
         assert.strictEqual(s0.active, true);
         assert.strictEqual(s0.mdns.mode, 'own');
-        assert.deepStrictEqual(s0.tcp.listening.sort(), [port, port2].sort());
+        assert.strictEqual(s0.tcp.port, port);
+        assert.deepStrictEqual(s0.tcp.listening, [port]);
+        assert.strictEqual(s0.tcp.busy[0].port, taken);
+        assert.strictEqual(s0.tcp.busy[0].error, 'EADDRINUSE');
+        assert.ok(s0.tcp.busy[0].holders.some((h) => /node/.test(h)), JSON.stringify(s0.tcp.busy));
 
         // a legacy unicast query (from a port that is not mdnsPort) is answered to that port
         const reply = await new Promise((res, rej) => {
@@ -191,6 +200,7 @@ test('probe: an mDNS query is answered and a connection is noted (loopback)', as
         assert.strictEqual(JSON.parse(fs.readFileSync(path.join(tmp, 'identity.json'), 'utf8')).deviceid, probe.identity.deviceid);
     } finally {
         await probe.stop('finally');
+        holder.close();
     }
 });
 
