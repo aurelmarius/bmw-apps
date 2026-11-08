@@ -17,6 +17,10 @@ const G = require('./kit/gauges');
 const W = 1600, H = 520;
 const SOCK = process.env.AIRPLAY_PROBE_SOCK || '/run/aurelm-airplay-probe.sock';
 const MINUTES = 15;
+// the service version this app is built with: an older one still running (its files were updated, the
+// process not) is asked to end, and the socket starts the new one at the next request
+const SERVICE_VERSION = '0.5.0';
+const older = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 const GREEN = '#2fd27a', AMBER = '#ffb020', RED = '#ef2b2d';
 
 /** one request: the service's status, or null when it does not answer */
@@ -90,12 +94,22 @@ const VERDICT_COLOR = { connected: GREEN, asked: AMBER, 'heard-phone': AMBER, wa
 mgu.run({
     async start(ctx) {
         const { ui, log } = ctx;
-        let st = null, busy = null, polling = false;
+        let st = null, busy = null, polling = false, askedExit = false;
 
         async function poll() {
             if (polling) return;
             polling = true;
-            try { st = await ask('status'); } finally { polling = false; }
+            try {
+                st = await ask('status');
+                if (st && st.version && older(st.version, SERVICE_VERSION) && !st.active && !askedExit) {
+                    askedExit = true;   // once: a service whose update failed is not stopped again and again
+                    log.info('airplay test: service ' + st.version + ' running, ' + SERVICE_VERSION + ' installed: asking it to end');
+                    busy = 'Updating the service...';
+                    await ask('exit');
+                    st = await ask('status');
+                    busy = null;
+                }
+            } finally { polling = false; }
         }
         async function command(cmd, label) {
             busy = label;
@@ -142,7 +156,10 @@ mgu.run({
             if (!lines.length) cv.text('On the iPhone: Control Center > Screen Mirroring', 1010, 222, 16, t.dim, { literal: true });
         }
 
-        setInterval(() => { poll().catch(() => {}); }, 1000);
+        // only while the page shows: in the background the app leaves the service alone, so it can end
+        // 10 minutes after the last request
+        const shown = () => !ui.isVisible || ui.isVisible('MAIN');
+        setInterval(() => { if (shown()) poll().catch(() => {}); }, 1000);
         await poll();
         ctx.loop('MAIN', 2, render);
         render().then(() => log.info('AirPlay Test first frame done')).catch((e) => log.warn('first render: ' + e));

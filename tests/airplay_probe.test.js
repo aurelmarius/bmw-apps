@@ -204,26 +204,50 @@ test('probe: a taken port is passed over, an mDNS query is answered, a connectio
     }
 });
 
-test('service: started as systemd would (control socket, check.js), stopped with SIGTERM', async () => {
-    const { spawn, spawnSync } = require('child_process');
+function spawnService() {
+    const { spawn } = require('child_process');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-'));
     const sock = path.join(tmp, 'ctl.sock');
     const env = Object.assign({}, process.env, { PROBE_SOCK: sock, PROBE_STATE: tmp, PROBE_NFT: 'off' });
     const svc = spawn(process.execPath, [path.join(DIR, 'probe.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let out = '';
-    svc.stdout.on('data', (d) => { out += d; });
-    svc.stderr.on('data', (d) => { out += d; });
+    const r = { svc, sock, out: '' };
+    r.exited = new Promise((res) => svc.on('exit', (c) => res(c)));
+    svc.stdout.on('data', (d) => { r.out += d; });
+    svc.stderr.on('data', (d) => { r.out += d; });
+    return r;
+}
+
+test('service: started as systemd would (control socket, check.js), stopped with SIGTERM', async () => {
+    const { spawnSync } = require('child_process');
+    const s = spawnService();
     try {
-        const r = spawnSync(process.execPath, [path.join(DIR, 'check.js'), sock], { encoding: 'utf8', timeout: 20000 });
-        assert.strictEqual(r.status, 0, r.stdout + r.stderr + out);
+        const r = spawnSync(process.execPath, [path.join(DIR, 'check.js'), s.sock], { encoding: 'utf8', timeout: 20000 });
+        assert.strictEqual(r.status, 0, r.stdout + r.stderr + s.out);
         assert.ok(/answers: idle/.test(r.stdout), r.stdout);
         // root only while the app is not installed (no /var/opt/public/oap here)
-        assert.strictEqual(fs.statSync(sock).mode & 0o777, 0o600);
+        assert.strictEqual(fs.statSync(s.sock).mode & 0o777, 0o600);
     } finally {
-        const code = await new Promise((res) => { svc.on('exit', (c) => res(c)); svc.kill('SIGTERM'); });
-        assert.strictEqual(code, 0, out);
+        s.svc.kill('SIGTERM');
+        assert.strictEqual(await s.exited, 0, s.out);
     }
-    assert.ok(/exit: SIGTERM/.test(out), out);
+    assert.ok(/exit: SIGTERM/.test(s.out), s.out);
+});
+
+test('service: the app asks an older version to end: it answers, then exits 0', async () => {
+    const { spawnSync } = require('child_process');
+    const s = spawnService();
+    try {
+        assert.strictEqual(spawnSync(process.execPath, [path.join(DIR, 'check.js'), s.sock], { encoding: 'utf8', timeout: 20000 }).status, 0, s.out);
+        const ex = await new Promise((res, rej) => {
+            const c = net.connect(s.sock, () => c.write('{"cmd":"exit"}\n'));
+            let b = ''; c.setEncoding('utf8'); c.on('data', (d) => { b += d; }); c.on('end', () => res(b)); c.on('error', rej);
+        });
+        assert.strictEqual(JSON.parse(ex.split('\n')[0]).exiting, true);
+        assert.strictEqual(await s.exited, 0, s.out);
+        assert.ok(/exit: asked by the app/.test(s.out), s.out);
+    } finally {
+        if (s.svc.exitCode === null) s.svc.kill('SIGKILL');
+    }
 });
 
 test('cleanup: never fails, also without nft', () => {

@@ -1,7 +1,7 @@
 {
   "id": "aurelm-airplay-probe",
   "kind": "tool",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "GPL-3.0-or-later",
   "title": "AirPlay network test service",
   "description": "For the app AirPlay Test: announces a test AirPlay receiver over mDNS and notes whether an iPhone finds and reaches it (on tcp 7300: the car's CarPlay holds 7000). Opens the firewall for that port and mDNS only while a test runs. Not a receiver: nothing is streamed.",
@@ -76,7 +76,9 @@
   "recmgr": [
     "aurelm-airplay-probe"
   ],
-  "restart": [],
+  "restart": [
+    "aurelm-airplay-probe.service"
+  ],
   "deactivate": [
     "node",
     "cleanup.js"

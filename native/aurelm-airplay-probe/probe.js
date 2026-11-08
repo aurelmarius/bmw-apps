@@ -33,7 +33,7 @@ const ap = require('./airplay');
 const nft = require('./nft');
 const sockgroup = require('./sockgroup');
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const MDNS_GROUP = '224.0.0.251';
 const QUERY_NAMES = ['_airplay._tcp.local', '_raop._tcp.local', '_companion-link._tcp.local', '_apple-mobdev2._tcp.local'];
 
@@ -420,7 +420,7 @@ function createProbe(opts) {
  * The control socket: systemd's (socket activation, fd 3) when it handed one over, else a socket of
  * our own at sockPath (a run by hand, the tests). onRequest() is called for every request.
  */
-function serveControl(probe, sockPath, log, onRequest) {
+function serveControl(probe, sockPath, log, onRequest, onExit) {
     const srv = net.createServer((c) => {
         let buf = '';
         c.setEncoding('utf8');
@@ -433,6 +433,13 @@ function serveControl(probe, sockPath, log, onRequest) {
                 let m = {};
                 try { m = JSON.parse(line || '{}'); } catch (e) { m = {}; }
                 if (onRequest) onRequest(m);
+                // exit: the app found an older version running (its files were updated under it); the reply
+                // goes first, then the service ends and the socket starts the new one at the next request
+                if (m.cmd === 'exit' && onExit) {
+                    try { c.end(JSON.stringify(Object.assign(probe.status(), { exiting: true })) + '\n'); } catch (e) { /* gone */ }
+                    onExit();
+                    return;
+                }
                 const p = m.cmd === 'start' ? probe.start(m.minutes) : m.cmd === 'stop' ? probe.stop('stopped from the app') : Promise.resolve(probe.status());
                 Promise.resolve(p).then((s) => { try { c.write(JSON.stringify(s) + '\n'); } catch (e) { /* gone */ } }, (e) => { try { c.write(JSON.stringify({ error: String(e.message || e) }) + '\n'); } catch (x) { /* gone */ } });
             }
@@ -475,7 +482,8 @@ function main() {
     });
     // what an earlier run in this boot left in the firewall goes first (a reboot clears it anyway)
     probe.cleanupSync();
-    serveControl(probe, sockPath, log, () => { lastRequest = Date.now(); });
+    let exiting = false;
+    serveControl(probe, sockPath, log, () => { lastRequest = Date.now(); }, () => { if (!exiting) { exiting = true; setTimeout(() => bye('asked by the app (a newer version is installed)', 0), 200); } });
     log('aurelm-airplay-probe ' + VERSION + ' on node ' + process.version + ', receiver ' + probe.identity.deviceid);
     const bye = (why, code) => {
         log('exit: ' + why);

@@ -32,6 +32,13 @@ most):
 iPhone's Personal Hotspot) or `172.16.222.0/24` (the car's Wi-Fi). Every other interface is listed in
 the log, not used.
 
+**Updates.** The deploy tool restarts the service on every install and update (`restart`), so a new
+version never waits for the old process to end; the app polls only while its page shows, so the service
+can end 10 minutes after the last request; and an app that finds an older service still running (no
+test on) asks it once to end (`{"cmd":"exit"}`): it answers, exits 0, and the socket starts the new one
+at the next request. Found in the car (2026-11-08): 0.4.0's files were installed while 0.3.0 kept running,
+because the app polled it every second from the background.
+
 ## Removal leaves nothing
 
 | What | Gone by |
@@ -82,7 +89,7 @@ What the Store's tools learned the hard way (mgu-store, waze-on-cluster), and ho
 | `sockgroup.js` | the control socket's group: the app's own, never `tm_oap_app` |
 
 Control: one JSON object per line on the socket, `{"cmd":"status"}`, `{"cmd":"start","minutes":15}`,
-`{"cmd":"stop"}`; the reply is the status. The last test's status is kept in
+`{"cmd":"stop"}`, `{"cmd":"exit"}`; the reply is the status. The last test's status is kept in
 `/var/opt/aurelm-airplay-probe/state/last-report.json` (every 30 s while it runs, and at its end).
 
 Tests: `node tests/airplay_probe.test.js` (also on Node 8.9.4). Package:
