@@ -46,6 +46,23 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 ![Hybrid Cost - price editor](docs/screenshots/hybrid_cost-price-editor.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
+### 3. 🔥 Wheel Heating (`aurelm_wheel_heat`)
+*Steering wheel heating on/off from a favourite button.*
+
+For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That wheel has no heating button, and on iDrive 7 only the voice command could switch it. Tested in a G20 with iDrive 7.
+
+* **Two tiles in the apps menu**:
+  * **Wheel Heat On/Off** switches the heating without opening anything: you stay on the screen you were on. Put this one on a favourite button: highlight it in the apps menu and hold a favourite button (1-8). The first press after the head unit starts shows "Loading app" while the app starts. Setting: switch on / off, or always switch on.
+  * **Wheel Heating** opens the status screen and switches nothing, so a heating the car switched on by itself in the cold stays on (setting: also switch, or always switch on).
+* **Status screen**: on / off as the car reports it, with an on / off button.
+* **Details page**: what the car reports and every request sent with the car's answer.
+* **How it switches**: through the steering wheel's own service (`SteeringWheelClimate.requestHeating`). Where the head unit's climate service offers it (`ClimateMaster.requestSteeringWheelHeating`, as on iDrive 8 cars), that is tried first; a G20 with iDrive 7 doesn't offer it.
+* **Why two tiles**: a tile the HMI opens a screen for always opens it, even from a favourite button, and an app can't take the HMI back to the screen you were on once its own screen is open. A tile with no screen opens nothing, but then the app can't open its screen from it either. So one tile does each (`app.json` `"entries"`, `"map": false`).
+
+![Wheel Heating - status](docs/screenshots/aurelm_wheel_heat-status.png)
+![Wheel Heating - details](docs/screenshots/aurelm_wheel_heat-details.png)
+<sub>Screenshots drawn by the app on a PC with a simulated car.</sub>
+
 ---
 
 ## 🚀 Installation
@@ -58,17 +75,17 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
    aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care** or **Hybrid Cost**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost** or **Wheel Heating**.
 
 **Installed Engine Care or Hybrid Cost from v1.5.9 or older?** The apps' ids now carry the `aurelm_` prefix (`aurelm_engine_care`, `aurelm_hybrid_cost`), as the Store's publishing guide asks and as in [bmw-games](https://github.com/aurelmarius/bmw-games), so the Store sees them as new apps: install them again, then remove the old ones (without the prefix) from the Store. Their data (Engine Care's hours and oil service, Hybrid Cost's trips and prices, the settings) starts afresh.
 
 Publishing a release (its draft's *Publish release* button or the *Publish Release* workflow) turns every older release into a pre-release (`tools/retire_older_releases.sh`): the Store reads every published release, so an app renamed or moved would otherwise show twice.
 
 ### Method 2: Via USB Stick
-1. Download `aurelm_engine_care@<version>.tgz` and `aurelm_hybrid_cost@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download the `aurelm_<app>@<version>.tgz` files from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ aurelm_engine_care@1.5.2.tgz aurelm_hybrid_cost@1.1.2.tgz
+   node mgu-install.js usb-repo E:\ aurelm_engine_care@1.5.2.tgz aurelm_hybrid_cost@1.1.2.tgz aurelm_wheel_heat@1.0.6.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
@@ -77,6 +94,7 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ```bash
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact aurelm_engine_care@1.5.2.tgz --yes
 /var/opt/mgu-deploy/mgu-deploy.sh install --artifact aurelm_hybrid_cost@1.1.2.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact aurelm_wheel_heat@1.0.6.tgz --yes
 ```
 
 ---
@@ -98,6 +116,7 @@ python3 kit/tools/build.py aurelm_engine_care aurelm_hybrid_cost  # -> dist/<id>
 node kit/tools/preview.js dist/aurelm_engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
+node tests/aurelm_wheel_heat.test.js                    # Wheel Heating's switching against a simulated car
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```
