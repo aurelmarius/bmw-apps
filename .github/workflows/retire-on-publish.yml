@@ -1,0 +1,27 @@
+name: Retire Older Releases
+
+# A release published on GitHub (the draft's "Publish release" button): every older published release
+# becomes a pre-release, so the Store sees only the newest one and never offers an app twice (an app
+# renamed or moved, still in an older release). See tools/retire_older_releases.sh.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    # a pre-release published on purpose retires nothing
+    if: ${{ !github.event.release.prerelease }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Retire the older releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: tools/retire_older_releases.sh "$TAG"

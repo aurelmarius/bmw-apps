@@ -36,7 +36,7 @@ process.on('unhandledRejection', () => {});        // the test canvas has no fon
 const APP = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-care-app-'));
 const DATA = path.join(APP, 'data');
 fs.mkdirSync(DATA);
-for (const f of ['main.js', 'model.js', 'app.json']) fs.copyFileSync(path.join(ROOT, 'apps', 'engine_care', f), path.join(APP, f));
+for (const f of ['main.js', 'model.js', 'app.json']) fs.copyFileSync(path.join(ROOT, 'apps', 'aurelm_engine_care', f), path.join(APP, f));
 fs.cpSync(path.join(ROOT, 'kit', 'runtime'), path.join(APP, 'kit'), { recursive: true });
 fs.writeFileSync(path.join(APP, 'kit', 'mgu.js'), 'module.exports = { run: (app) => { global.__app = app; } };');
 process.on('exit', () => fs.rmSync(APP, { recursive: true, force: true }));

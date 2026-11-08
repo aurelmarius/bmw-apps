@@ -8,7 +8,7 @@ The games (Snake, Track Defender, Pit Wall, Lucky Sevens, Blackjack, Solitaire, 
 
 ## 📱 Applications
 
-### 1. ⚙️ Engine Care (`engine_care`)
+### 1. ⚙️ Engine Care (`aurelm_engine_care`)
 *PHEV engine health and oil life intelligence monitor.*
 
 BMW PHEV powertrains frequently start the combustion engine (ICE) directly while driving under hard acceleration, often when oil and coolant are completely cold. Standard BMW CBS (Condition Based Service) service intervals assume gentle highway mileage rather than intermittent short-cycle usage. **Engine Care** tracks real combustion engine telemetry to protect the engine:
@@ -30,7 +30,7 @@ BMW PHEV powertrains frequently start the combustion engine (ICE) directly while
 ![Engine Care - diagnostics page](docs/screenshots/engine_care-diagnostics.png)
 <sub>Screenshots drawn by the app on a PC (`tools/screenshots.js`) with sample data.</sub>
 
-### 2. ⚡ Hybrid Cost (`hybrid_cost`)
+### 2. ⚡ Hybrid Cost (`aurelm_hybrid_cost`)
 *Real-time running cost & energy split calculator.*
 
 Compare the financial and energy efficiency of electric vs petrol driving live on your central display:
@@ -60,19 +60,23 @@ Compare the financial and energy efficiency of electric vs petrol driving live o
 4. Select **Releases** as the source type.
 5. Tap **Install** next to **Engine Care** or **Hybrid Cost**.
 
+**Installed Engine Care or Hybrid Cost from v1.5.9 or older?** The apps' ids now carry the `aurelm_` prefix (`aurelm_engine_care`, `aurelm_hybrid_cost`), as the Store's publishing guide asks and as in [bmw-games](https://github.com/aurelmarius/bmw-games), so the Store sees them as new apps: install them again, then remove the old ones (without the prefix) from the Store. Their data (Engine Care's hours and oil service, Hybrid Cost's trips and prices, the settings) starts afresh.
+
+Publishing a release (its draft's *Publish release* button or the *Publish Release* workflow) turns every older release into a pre-release (`tools/retire_older_releases.sh`): the Store reads every published release, so an app renamed or moved would otherwise show twice.
+
 ### Method 2: Via USB Stick
-1. Download `engine_care@<version>.tgz` and `hybrid_cost@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
+1. Download `aurelm_engine_care@<version>.tgz` and `aurelm_hybrid_cost@<version>.tgz` from [Releases](https://github.com/aurelmarius/bmw-apps/releases).
 2. Copy the files onto a USB stick or build a USB repository:
    ```powershell
-   node mgu-install.js usb-repo E:\ engine_care@1.5.2.tgz hybrid_cost@1.1.2.tgz
+   node mgu-install.js usb-repo E:\ aurelm_engine_care@1.5.2.tgz aurelm_hybrid_cost@1.1.2.tgz
    ```
 3. Insert the USB drive into your car and install from the **USB** page of the Store.
 
 ### Method 3: Manual Deployment via SSH
 Copy the package to the head unit and run `mgu-deploy.sh`:
 ```bash
-/var/opt/mgu-deploy/mgu-deploy.sh install --artifact engine_care@1.5.2.tgz --yes
-/var/opt/mgu-deploy/mgu-deploy.sh install --artifact hybrid_cost@1.1.2.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact aurelm_engine_care@1.5.2.tgz --yes
+/var/opt/mgu-deploy/mgu-deploy.sh install --artifact aurelm_hybrid_cost@1.1.2.tgz --yes
 ```
 
 ---
@@ -90,15 +94,15 @@ Copy the package to the head unit and run `mgu-deploy.sh`:
 ## 🧪 Development
 
 ```bash
-python3 kit/tools/build.py engine_care hybrid_cost  # -> dist/<id>@<version>.tgz
-node kit/tools/preview.js dist/engine_care preview      # what the app draws, as PNGs (demo data)
+python3 kit/tools/build.py aurelm_engine_care aurelm_hybrid_cost  # -> dist/<id>@<version>.tgz
+node kit/tools/preview.js dist/aurelm_engine_care preview      # what the app draws, as PNGs (demo data)
 node tests/engine_care.test.js                          # Engine Care's model
 node tests/engine_care_app.test.js                      # the app on a simulated head unit
 node tools/replay_engine_care.js engine_care_drive.jsonl --events   # a drive recorded in the car
 node tools/screenshots.js                               # the README's screenshots (after a build)
 ```
 
-Engine Care's bookkeeping is in `apps/engine_care/model.js`; `main.js` reads the car and draws. A drive recorded in the car (setting "Record drive data", file `engine_care_drive.jsonl` in the app's data folder) can be replayed with other settings, e.g. `--set warmTarget=85`.
+Engine Care's bookkeeping is in `apps/aurelm_engine_care/model.js`; `main.js` reads the car and draws. A drive recorded in the car (setting "Record drive data", file `engine_care_drive.jsonl` in the app's data folder) can be replayed with other settings, e.g. `--set warmTarget=85`.
 
 **Releasing**: build, copy the new `dist/*.tgz` into `packages/` (remove the old version of that app) and push. The push of `packages/` runs the *Prepare Draft Release* workflow, which updates `catalog.json` and creates a draft release; publish the draft to make it visible in the Store.
 

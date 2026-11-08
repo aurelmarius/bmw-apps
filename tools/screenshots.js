@@ -5,7 +5,7 @@
  * data: a sample state (some months after an oil change) and a car that sends steady values over a fake
  * SOME/IP and answers the diagnostic requests. No head unit needed.
  *
- *   python3 kit/tools/build.py engine_care hybrid_cost && node tools/screenshots.js
+ *   python3 kit/tools/build.py aurelm_engine_care aurelm_hybrid_cost && node tools/screenshots.js
  *
  * Each app runs in its own process (the fake clock replaces Date.now and the timers).
  */
@@ -27,7 +27,7 @@ if (!process.argv[2]) {
 }
 
 const which = process.argv[2];
-const stage = path.join(ROOT, 'dist', which === 'price_editor' ? 'hybrid_cost' : which, 'source', 'javascript');
+const stage = path.join(ROOT, 'dist', 'aurelm_' + (which === 'price_editor' ? 'hybrid_cost' : which), 'source', 'javascript');
 if (!fs.existsSync(stage)) { console.error('build it first: python3 kit/tools/build.py ' + which); process.exit(1); }
 const { Canvas } = require(path.join(stage, 'kit', 'canvas'));
 const { theme } = require(path.join(stage, 'kit', 'themes'));
