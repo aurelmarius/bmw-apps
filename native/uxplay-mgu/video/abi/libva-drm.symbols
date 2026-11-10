@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Robert Nisipeanu
+# Exported symbols of the head unit's /usr/lib/libva-drm.so.1.9900.0 (SONAME libva-drm.so.1).
+# Format "name TYPE size" (the cluster renderer's dcsm/tools/abi.py).
+# sha256 34b0c0a6ce4364b040d96c76d77ccb9adb19ee8e502600a8717be0e55e73cb68
+vaGetDisplayDRM FUNC 219

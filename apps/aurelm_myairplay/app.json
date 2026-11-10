@@ -1,0 +1,148 @@
+{
+  "id": "aurelm_myairplay",
+  "title": "myAirPlay",
+  "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the myAirPlay service.",
+  "version": "1.0.0",
+  "vendor": "custom",
+  "loggingId": "OA9A",
+  "iconGlyph": "AP",
+  "signals": {
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "org.genivi.am.commandinterface.CommandControl": {
+      "_instances": "1",
+      "_methods": [
+        "connect",
+        "disconnect",
+        "getListMainConnections"
+      ]
+    },
+    "org.genivi.am.routinginterface.RoutingControlObserver": {
+      "_instances": "1",
+      "_methods": [
+        "hookSourceAvailablityStatusChange"
+      ]
+    }
+  },
+  "requires": {
+    "aurelm-myairplay": "1.0.0"
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "myAirPlay",
+      "buttons": [
+        [
+          "BTN_RX",
+          "Start AirPlay"
+        ],
+        [
+          "BTN_STOP",
+          "Stop"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "videoButton",
+      "label": "AirPlay video button (YouTube): the head unit plays the video itself (only while the iPhone is not in CarPlay)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "aspect",
+      "label": "Picture shape of a video (also the button on its controls)",
+      "type": "choice",
+      "default": "fill",
+      "options": [
+        [
+          "fill",
+          "Fill: the screen full, the edges cut"
+        ],
+        [
+          "zoom",
+          "Zoom: between"
+        ],
+        [
+          "fit",
+          "Fit: the whole video, black bars"
+        ]
+      ]
+    },
+    {
+      "key": "parkedOnly",
+      "label": "Picture only while parked (off: also while driving, for passengers; the driver must not watch)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "endOnLeave",
+      "label": "End the iPhone's mirroring when leaving the app (CarPlay is free at once)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "theme",
+      "label": "Colour theme",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    }
+  ]
+}

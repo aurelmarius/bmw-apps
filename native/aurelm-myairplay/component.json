@@ -1,0 +1,124 @@
+{
+  "id": "aurelm-myairplay",
+  "kind": "tool",
+  "version": "0.9.10",
+  "license": "GPL-3.0-or-later",
+  "title": "AirPlay network test service",
+  "description": "For the app myAirPlay: the network test, and the AirPlay receiver (UxPlay's protocol on the head unit): the iPhone's screen mirroring decoded on the GPU into mgu-render's frame file, shown by the app while parked, and its sound into SmartXbar's CarLife input; a video sent with the AirPlay button (YouTube) played by its own player from the internet (mgu-uplink, through a proxy running as uid 13102). Opens the firewall for its ports only while a test runs.",
+  "requires": {
+    "mgu-deploy": "0.7.0",
+    "mgu-uplink": "0.7.0"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ],
+  "internet": true,
+  "uids": [
+    13102
+  ],
+  "files": [
+    {
+      "path": "probe.js",
+      "from": "probe.js",
+      "mode": "0644"
+    },
+    {
+      "path": "dns.js",
+      "from": "dns.js",
+      "mode": "0644"
+    },
+    {
+      "path": "airplay.js",
+      "from": "airplay.js",
+      "mode": "0644"
+    },
+    {
+      "path": "nft.js",
+      "from": "nft.js",
+      "mode": "0644"
+    },
+    {
+      "path": "receiver.js",
+      "from": "receiver.js",
+      "mode": "0644"
+    },
+    {
+      "path": "proxy.js",
+      "from": "proxy.js",
+      "mode": "0644"
+    },
+    {
+      "path": "cacert.pem",
+      "from": "cacert.pem",
+      "mode": "0644"
+    },
+    {
+      "path": "sockgroup.js",
+      "from": "sockgroup.js",
+      "mode": "0644"
+    },
+    {
+      "path": "check.js",
+      "from": "check.js",
+      "mode": "0644"
+    },
+    {
+      "path": "cleanup.js",
+      "from": "cleanup.js",
+      "mode": "0644"
+    },
+    {
+      "path": "README.md",
+      "from": "README.md",
+      "mode": "0644"
+    },
+    {
+      "path": "uxplay-mgu",
+      "from": "../uxplay-mgu/build/uxplay-mgu",
+      "mode": "0755"
+    },
+    {
+      "path": "UXPLAY-LICENSE",
+      "from": "../uxplay-mgu/build/UXPLAY-LICENSE",
+      "mode": "0644"
+    },
+    {
+      "path": "FFMPEG-LICENSE",
+      "from": "../uxplay-mgu/build/FFMPEG-LICENSE",
+      "mode": "0644"
+    }
+  ],
+  "check": [
+    "check.js"
+  ],
+  "deactivate": [
+    "node",
+    "cleanup.js"
+  ],
+  "crashNames": [
+    "uxplay-mgu"
+  ],
+  "units": [
+    {
+      "name": "aurelm-myairplay.socket",
+      "from": "systemd/aurelm-myairplay.socket"
+    },
+    {
+      "name": "aurelm-myairplay.service",
+      "from": "systemd/aurelm-myairplay.service"
+    }
+  ],
+  "enable": [
+    {
+      "unit": "aurelm-myairplay.socket",
+      "target": "sockets.target"
+    }
+  ],
+  "recmgr": [
+    "aurelm-myairplay"
+  ],
+  "restart": [
+    "aurelm-myairplay.service"
+  ]
+}
