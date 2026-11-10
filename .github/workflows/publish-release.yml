@@ -28,6 +28,15 @@ jobs:
           gh release edit "$TAG" --draft=false --latest
           gh release view "$TAG" --json isDraft,url,publishedAt
 
+      # the Store's `catalog` release (how a tool, myAirPlay's service, reaches the car) follows the release just
+      # published: tools/update_catalog_release.sh
+      - name: Update the catalog release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: tools/update_catalog_release.sh "$TAG"
+
       # a release published with this workflow's token starts no other workflow (retire-on-publish.yml
       # doesn't run), so the older releases are retired here
       - name: Retire the older releases

@@ -18,6 +18,7 @@ const { t } = require('./i18n');
 const OP = {
     CLEAR: 1, RECT: 2, GRAD: 3, RRECT: 4, RSTROKE: 5, CARD: 6, RAMPRECT: 7, ARC: 8, LINE: 9,
     TRIS: 10, GLYPHS: 11, LAYER: 12, CLIP: 13, NOCLIP: 14, QUAD: 15, ALPHA: 16, XF: 17, IMAGE: 18,
+    VIDEO: 19,       // mgu-render/1 only (a video named with RenderClient.video): from Moonride's kit
 };
 
 /* ---------- colours: 0xRRGGBBAA ---------- */
@@ -116,6 +117,13 @@ class Recorder {
     target(x, y, w, h, run, key, r) { this.targets.push({ x, y, w, h, run, key: String(key), r }); return this; }
 
     /* ---------- canvas.js API ---------- */
+    /** mgu-render/1: video `id`'s newest frame fitted into x, y, w, h (aspect kept, centred). Not on the software path.
+     *  (From JustAnotherPU/moonride's kit, record.js.) */
+    video(id, x, y, w, h, r) {
+        this._grow(7); const f = this.f, i = this.n;
+        this.u[i] = OP.VIDEO; f[i + 1] = x; f[i + 2] = y; f[i + 3] = w; f[i + 4] = h; f[i + 5] = r || 0; this.u[i + 6] = id;
+        this.n += 7; return this;
+    }
     /** Draw pixel image `id` (see setImage) scaled into x, y, w, h (nearest pixel). */
     image(id, x, y, w, h) {
         const im = imageById.get(id);
@@ -353,6 +361,7 @@ function play(words, real) {
             i += k * 8; break;
         }
         case OP.LAYER: { const L = layerById.get(u[i]); if (L) cv.blit(softLayer(L), f[i + 1], f[i + 2]); i += 3; break; }
+        case OP.VIDEO: i += 6; break;                       // (software path: no video)
         case OP.IMAGE: { const im = imageById.get(u[i]); if (im && cv.drawImage) cv.drawImage(im.data, im.w, im.h, f[i + 2], f[i + 3], f[i + 4], f[i + 5]); i += 6; break; }
         case OP.CLIP: clip = [f[i], f[i + 1], f[i + 2], f[i + 3]]; i += 4; break;     // (software path: ignored)
         case OP.NOCLIP: clip = null; break;

@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Robert Nisipeanu
+# Exported symbols of the head unit's /usr/lib/libmfxhw64-p.so.1.24 (SONAME libmfxhw64.so,
+# "Intel(R) Media SDK 2017 for Embedded Linux", mediasdk_file_version 0.20.7.21). The unit has
+# no MSDK dispatcher (libmfx.so): the decoder links libmfxhw64.so directly.
+# Format "name TYPE size" (the cluster renderer's dcsm/tools/abi.py); the comment is the symbol version.
+# sha256 9ca598b92b29383bb1271494c125bd6a80b7c7f24cf142d7a3b15714bc1d6cd9
+MFXCloneSession FUNC 6  # LIBMFX_1.0
+MFXClose FUNC 265  # LIBMFX_1.0
+MFXDisjoinSession FUNC 837  # LIBMFX_1.0
+MFXDoWork FUNC 229  # LIBMFX_1.14
+MFXGetPriority FUNC 33  # LIBMFX_1.0
+MFXInit FUNC 209  # LIBMFX_1.0
+MFXInitEx FUNC 722  # LIBMFX_1.14
+MFXJoinSession FUNC 683  # LIBMFX_1.0
+MFXQueryIMPL FUNC 52  # LIBMFX_1.0
+MFXQueryVersion FUNC 42  # LIBMFX_1.0
+MFXSetPriority FUNC 153  # LIBMFX_1.0
+MFXVideoCORE_GetHandle FUNC 84  # LIBMFX_1.0
+MFXVideoCORE_QueryPlatform FUNC 155  # LIBMFX_1.19
+MFXVideoCORE_SetBufferAllocator FUNC 84  # LIBMFX_1.0
+MFXVideoCORE_SetFrameAllocator FUNC 84  # LIBMFX_1.0
+MFXVideoCORE_SetHandle FUNC 84  # LIBMFX_1.0
+MFXVideoCORE_SyncOperation FUNC 337  # LIBMFX_1.0
+MFXVideoDECODE_Close FUNC 341  # LIBMFX_1.0
+MFXVideoDECODE_DecodeFrameAsync FUNC 1181  # LIBMFX_1.0
+MFXVideoDECODE_DecodeHeader FUNC 605  # LIBMFX_1.0
+MFXVideoDECODE_GetDecodeStat FUNC 84  # LIBMFX_1.0
+MFXVideoDECODE_GetPayload FUNC 84  # LIBMFX_1.0
+MFXVideoDECODE_GetVideoParam FUNC 84  # LIBMFX_1.0
+MFXVideoDECODE_Init FUNC 397  # LIBMFX_1.0
+MFXVideoDECODE_Query FUNC 761  # LIBMFX_1.0
+MFXVideoDECODE_QueryIOSurf FUNC 621  # LIBMFX_1.0
+MFXVideoDECODE_Reset FUNC 109  # LIBMFX_1.0
+MFXVideoDECODE_SetSkipMode FUNC 84  # LIBMFX_1.0
+MFXVideoENCODE_Close FUNC 341  # LIBMFX_1.0
+MFXVideoENCODE_EncodeFrameAsync FUNC 2136  # LIBMFX_1.0
+MFXVideoENCODE_GetEncodeStat FUNC 84  # LIBMFX_1.0
+MFXVideoENCODE_GetVideoParam FUNC 84  # LIBMFX_1.0
+MFXVideoENCODE_Init FUNC 629  # LIBMFX_1.0
+MFXVideoENCODE_Query FUNC 3245  # LIBMFX_1.0
+MFXVideoENCODE_QueryIOSurf FUNC 712  # LIBMFX_1.0
+MFXVideoENCODE_Reset FUNC 133  # LIBMFX_1.0
+MFXVideoENC_Close FUNC 139  # LIBMFX_1.10
+MFXVideoENC_GetVideoParam FUNC 84  # LIBMFX_1.19
+MFXVideoENC_Init FUNC 332  # LIBMFX_1.10
+MFXVideoENC_ProcessFrameAsync FUNC 1210  # LIBMFX_1.10
+MFXVideoENC_Query FUNC 274  # LIBMFX_1.10
+MFXVideoENC_QueryIOSurf FUNC 290  # LIBMFX_1.10
+MFXVideoENC_Reset FUNC 109  # LIBMFX_1.10
+MFXVideoPAK_Close FUNC 133  # LIBMFX_1.13
+MFXVideoPAK_GetVideoParam FUNC 84  # LIBMFX_1.19
+MFXVideoPAK_Init FUNC 170  # LIBMFX_1.13
+MFXVideoPAK_ProcessFrameAsync FUNC 946  # LIBMFX_1.13
+MFXVideoPAK_Query FUNC 143  # LIBMFX_1.13
+MFXVideoPAK_QueryIOSurf FUNC 147  # LIBMFX_1.13
+MFXVideoPAK_Reset FUNC 109  # LIBMFX_1.13
+MFXVideoUSER_GetPlugin FUNC 893  # LIBMFX_1.19
+MFXVideoUSER_ProcessFrameAsync FUNC 362  # LIBMFX_1.1
+MFXVideoUSER_Register FUNC 1455  # LIBMFX_1.1
+MFXVideoUSER_Unregister FUNC 1090  # LIBMFX_1.1
+MFXVideoVPP_Close FUNC 341  # LIBMFX_1.0
+MFXVideoVPP_GetVPPStat FUNC 84  # LIBMFX_1.0
+MFXVideoVPP_GetVideoParam FUNC 84  # LIBMFX_1.0
+MFXVideoVPP_Init FUNC 448  # LIBMFX_1.0
+MFXVideoVPP_Query FUNC 540  # LIBMFX_1.0
+MFXVideoVPP_QueryIOSurf FUNC 496  # LIBMFX_1.0
+MFXVideoVPP_Reset FUNC 109  # LIBMFX_1.0
+MFXVideoVPP_RunFrameVPPAsync FUNC 2130  # LIBMFX_1.0
+MFXVideoVPP_RunFrameVPPAsyncEx FUNC 825  # LIBMFX_1.10

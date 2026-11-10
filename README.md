@@ -63,6 +63,21 @@ For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That whe
 ![Wheel Heating - details](docs/screenshots/aurelm_wheel_heat-details.png)
 <sub>Screenshots drawn by the app on a PC with a simulated car.</sub>
 
+### 4. 📺 myAirPlay (`aurelm_myairplay`) + myAirPlay service (`aurelm-myairplay`)
+*The head unit as an AirPlay receiver for an iPhone.*
+
+* **Screen mirroring**: on the iPhone, Control Center > Screen Mirroring > **BMW iDrive**. The iPhone's screen on the centre screen (decoded on the GPU, smooth, landscape fills the screen) and its sound on the car's speakers. **Works with wireless CarPlay connected.**
+* **A video with the AirPlay button** (YouTube): the AirPlay button in the video > **BMW iDrive**. The head unit plays the video itself from the internet (mgu-uplink: an LTE stick, a USB modem or the iPhone's hotspot), up to 720p, with its sound on the speakers. Touch the picture or use the iDrive controller for its controls: -10 s, play / pause, +30 s, the picture's shape (fill, zoom, fit), and the progress bar. **Only while the iPhone is not in CarPlay**: iOS ends such a video when CarPlay is connected.
+* **The picture shows while the car is parked** (setting, on by default; off: also while driving, for passengers). The iDrive controller's buttons hide a mirrored screen; leaving the app ends the mirroring, so CarPlay is free at once (setting).
+* **Start AirPlay** makes the receiver run for an hour, and longer while an iPhone uses it. The service starts with the app (never at boot), opens its firewall ports only while the receiver runs, and leaves nothing behind when removed.
+* Built on [UxPlay](https://github.com/FDH2/UxPlay) (GPL-3.0), with the GPU decoder from Moonride and FFmpeg. Developed and tested in the car as "AirPlay Test" in [bmw-test-apps](https://github.com/aurelmarius/bmw-test-apps). Details: [`native/aurelm-myairplay/README.md`](native/aurelm-myairplay/README.md).
+
+![myAirPlay - ready](docs/screenshots/aurelm_myairplay-ready.png)
+![myAirPlay - a video](docs/screenshots/aurelm_myairplay-video.png)
+<sub>Screenshots drawn by the app on a PC with a simulated service.</sub>
+
+**Installing**: the Store installs the myAirPlay service with the app (it needs mgu-uplink for videos). **Restart the head unit once** after installing (the service listens for the app from the next start). If AirPlay Test from bmw-test-apps is installed, remove it and its service first: both use the same ports.
+
 ---
 
 ## 🚀 Installation

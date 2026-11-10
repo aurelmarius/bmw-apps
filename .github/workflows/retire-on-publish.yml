@@ -25,3 +25,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
         run: tools/retire_older_releases.sh "$TAG"
+
+      # the Store's `catalog` release (how a tool, myAirPlay's service, reaches the car) follows the release just
+      # published: tools/update_catalog_release.sh
+      - name: Update the catalog release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: tools/update_catalog_release.sh "$TAG"

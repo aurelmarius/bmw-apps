@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=aurelm-myairplay control socket (the app myAirPlay)
+
+[Socket]
+# The app's connection starts aurelm-myairplay.service; nothing of the test runs before it, at boot
+# included. Root's alone when made; sockgroup.js then gives it the myAirPlay app's own group (0660),
+# not tm_oap_app, which every app has. The socket file goes when the socket stops (an uninstall).
+ListenStream=/run/aurelm-myairplay.sock
+SocketMode=0600
+RemoveOnStop=yes
+ExecStartPost=-/bin/sh -c 'ulimit -c 1; exec /usr/bin/node /var/opt/aurelm-myairplay/current/sockgroup.js'
+# no core dump from the command above to the crash handler
+LimitCORE=1
+
+[Install]
+WantedBy=sockets.target
