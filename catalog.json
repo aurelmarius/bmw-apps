@@ -3,6 +3,28 @@
   "name": "Aurel Marius BMW Apps",
   "components": [
     {
+      "id": "aurelm-myairplay",
+      "kind": "tool",
+      "version": "1.0.0",
+      "title": "myAirPlay service",
+      "description": "For the app myAirPlay: the AirPlay receiver \"BMW iDrive\" (UxPlay's protocol on the head unit). The iPhone's screen mirroring decoded on the GPU into mgu-render's frame file and its sound into SmartXbar's CarLife input; a video sent with the AirPlay button (YouTube) played by its own player from the internet (mgu-uplink, through a proxy running as uid 13102). Opens the firewall for its ports only while the receiver runs.",
+      "author": "aurelmarius",
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "aurelm-myairplay@1.0.0.tgz",
+        "size": 3214946,
+        "sha256": "7e91414605a62c332734d3087a76a49712800a1aa2b8ee5f41bdf5d848037bdd",
+        "url": "packages/aurelm-myairplay@1.0.0.tgz"
+      },
+      "requires": {
+        "mgu-deploy": "0.7.0",
+        "mgu-uplink": "0.7.0"
+      },
+      "uninstallable": true
+    },
+    {
       "id": "aurelm_engine_care",
       "kind": "app",
       "version": "1.5.2",
@@ -17,7 +39,9 @@
         "sha256": "f005b335d91355d9c8eb301d95cdf43d09333c95355a16fbe056e6737dcfad76",
         "url": "packages/aurelm_engine_care@1.5.2.tgz"
       },
-      "uninstallable": true
+      "uninstallable": true,
+      "icon": "aurelm_engine_care.png",
+      "iconSha256": "e00267cdc7e01dd2d0af2da474ecd811e8725708e96c933786f5023a4802d60b"
     },
     {
       "id": "aurelm_hybrid_cost",
@@ -34,7 +58,31 @@
         "sha256": "a4a92d1ec96d34ca497ccadc685e9f47c911880e06010ea79adb938bd820aae6",
         "url": "packages/aurelm_hybrid_cost@1.1.2.tgz"
       },
-      "uninstallable": true
+      "uninstallable": true,
+      "icon": "aurelm_hybrid_cost.png",
+      "iconSha256": "37cc0d55a3ba679809bee3ad470d0d8a5693033f795736bb8c413105d0d8d290"
+    },
+    {
+      "id": "aurelm_myairplay",
+      "kind": "app",
+      "version": "1.0.0",
+      "title": "myAirPlay",
+      "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the myAirPlay service.",
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "aurelm_myairplay@1.0.0.tgz",
+        "size": 575796,
+        "sha256": "ab811608794a4659f8d7e59a5c8edfaf71da15d700eb1989413b3d4f376d85dd",
+        "url": "packages/aurelm_myairplay@1.0.0.tgz"
+      },
+      "uninstallable": true,
+      "icon": "aurelm_myairplay.png",
+      "iconSha256": "eacf6d436d58a4113184b9b3b2306012cc5d52ec1d6c8d0f264371fbd00522bb",
+      "requires": {
+        "aurelm-myairplay": "1.0.0"
+      }
     },
     {
       "id": "aurelm_wheel_heat",
@@ -51,7 +99,9 @@
         "sha256": "54cb1363d3a2d71d108f42b2e250a164537fe916434118f35bd14b532e85b840",
         "url": "packages/aurelm_wheel_heat@1.0.6.tgz"
       },
-      "uninstallable": true
+      "uninstallable": true,
+      "icon": "aurelm_wheel_heat.png",
+      "iconSha256": "6438eafb37a036fc896dc49765c821760fd37a7fd5be52ca2cfbb11c1cc64920"
     }
   ]
 }

@@ -14,6 +14,13 @@
       "icon": "aurelm_hybrid_cost.png",
       "iconSha256": "37cc0d55a3ba679809bee3ad470d0d8a5693033f795736bb8c413105d0d8d290"
     },
+    "aurelm_myairplay": {
+      "title": "myAirPlay",
+      "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the myAirPlay service.",
+      "author": "custom",
+      "icon": "aurelm_myairplay.png",
+      "iconSha256": "eacf6d436d58a4113184b9b3b2306012cc5d52ec1d6c8d0f264371fbd00522bb"
+    },
     "aurelm_wheel_heat": {
       "title": "Wheel Heating",
       "description": "Steering wheel heating on/off from a favourite button: for a heated iDrive 8 (LCI) steering wheel without its own button, fitted to an iDrive 7 car",
