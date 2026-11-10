@@ -6,6 +6,7 @@
 # older release still carrying an app since renamed or moved shows it in the Store a second time.
 # Each release carries every package in packages/, so the newest one is all the Store needs; the
 # older ones stay as they were (assets, notes), only out of the Store's sight.
+# The `catalog` release (the Store's catalog.json) is never retired.
 # Needs GH_TOKEN and GH_REPO (as the workflows set them).
 set -euo pipefail
 KEEP="${1:?usage: retire_older_releases.sh <published tag>}"
@@ -21,6 +22,8 @@ gh release list --limit 200 --json tagName,isDraft,isPrerelease \
     --jq '.[] | select(.isDraft == false and .isPrerelease == false) | .tagName' |
 while read -r t; do
     [ "$t" = "$KEEP" ] && continue
+    # the Store's catalog release is read as the source's catalog: never retired
+    [ "$t" = "catalog" ] && continue
     echo "retiring $t"
     gh release edit "$t" --prerelease
 done

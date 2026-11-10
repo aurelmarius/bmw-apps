@@ -1,5 +1,8 @@
 # aurelm-myairplay
 
+The service behind **myAirPlay** (`apps/aurelm_myairplay`). It was developed and tested in the car as "AirPlay
+Test" in aurelmarius/bmw-test-apps; the notes below keep that history (versions 0.x).
+
 The service behind the app **myAirPlay** (`apps/aurelm_myairplay`): a network test for a future
 AirPlay receiver on the iDrive 7 head unit. It answers one question: **can an iPhone find the head unit
 as an AirPlay receiver and connect to it?** Nothing is streamed; it is not a receiver.
