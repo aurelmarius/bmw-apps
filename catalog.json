@@ -5,7 +5,7 @@
     {
       "id": "aurelm-myairplay",
       "kind": "tool",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "title": "myAirPlay service",
       "description": "For the app myAirPlay: the AirPlay receiver \"BMW iDrive\" (UxPlay's protocol on the head unit). The iPhone's screen mirroring decoded on the GPU into mgu-render's frame file and its sound into SmartXbar's CarLife input; a video sent with the AirPlay button (YouTube) played by its own player from the internet (mgu-uplink, through a proxy running as uid 13102). Opens the firewall for its ports only while the receiver runs.",
       "author": "aurelmarius",
@@ -13,10 +13,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm-myairplay@1.0.0.tgz",
-        "size": 3214946,
-        "sha256": "7e91414605a62c332734d3087a76a49712800a1aa2b8ee5f41bdf5d848037bdd",
-        "url": "packages/aurelm-myairplay@1.0.0.tgz"
+        "name": "aurelm-myairplay@1.0.1.tgz",
+        "size": 3214981,
+        "sha256": "e9593c58d06e8d3b0d68f9ddbc431a14ed71066ef098cac30ba6dae809271b52",
+        "url": "packages/aurelm-myairplay@1.0.1.tgz"
       },
       "requires": {
         "mgu-deploy": "0.7.0",
