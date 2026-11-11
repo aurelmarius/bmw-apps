@@ -12,8 +12,9 @@ import glob, gzip, hashlib, io, json, os, sys, tarfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGES = os.path.join(ROOT, 'packages')
 MTIME = 1792281600  # 2026-10-18
-# what the deploy tool reads; requires and uninstallable are the catalog's
-PASS = ('mguHmi', 'mguProvides', 'keepRunning', 'crashNames', 'postInstall', 'check', 'activate', 'deactivate')
+# what the deploy tool reads; requires and uninstallable too: once no catalog lists the tool, the Store's Remove
+# comes from the installed component.json's uninstallable (mgu-updater README, "originless")
+PASS = ('requires', 'uninstallable', 'mguHmi', 'mguProvides', 'keepRunning', 'crashNames', 'postInstall', 'check', 'activate', 'deactivate')
 
 
 def sha256(b):
