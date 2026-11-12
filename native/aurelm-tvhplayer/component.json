@@ -1,7 +1,7 @@
 {
   "id": "aurelm-tvhplayer",
   "kind": "tool",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "GPL-3.0-or-later",
   "title": "TVH Player service",
   "description": "For the app TVH Player: Tvheadend's channels on the head unit. The channel comes with one of the server's transcoding profiles (mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced by the server, AAC, MPEG-TS), is decoded on the GPU into mgu-render's frame file (the app shows it while parked) and played into SmartXbar's CarLife input. Signs in once from the phone (a page on the car Wi-Fi, opened from the app's QR code); keeps the server, the user and the password (root's, 0600). Its internet goes through mgu-uplink, as uid 13103 only; the player runs as nobody.",

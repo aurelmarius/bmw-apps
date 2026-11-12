@@ -9,6 +9,15 @@ one of its stream profiles, the head unit's GPU decodes it, and the sound goes t
 24 hours (the guide), a channel playing with a profile from the app's settings, the profile lowered by itself when
 the internet is slow. Not yet: recordings (DVR), timeshift, a grid of every channel's programme, HTSP.
 
+**1.0.1** (2026-11-12, the car and the server's log): the stream breaks seen on HBO HD were the server's: Tvheadend's
+transcoder stops a stream when the channel's MP2 sound jumps back in time ("Queue input is backward in time ...
+non monotonically increasing dts ... muxer reported errors") and closes the connection cleanly; and its `mgu-sd`
+profile failed at once, every time ("Error setting option mpegts_flags to value nit ... Failed to write mpegts header"),
+so the reconnection, gone a profile down, never came back. Now a stream the server ends cleanly is opened again with
+the same profile (only a network failure, a reset or 10 s of silence, takes one down), and a profile whose stream ends
+at once (nothing played, within 8 s) twice is passed over for that channel's playing, said in the status
+(`badProfiles`, the Status tab's Playing row), the stream going on with the last profile that played.
+
 ## Why the server transcodes
 
 A channel as the satellite sends it ("pass") is, for example (PRO TV HD from DIGI, 2026-11-10): H.264 1920x1080
