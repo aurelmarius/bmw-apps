@@ -21,6 +21,13 @@
       "icon": "aurelm_myairplay.png",
       "iconSha256": "eacf6d436d58a4113184b9b3b2306012cc5d52ec1d6c8d0f264371fbd00522bb"
     },
+    "aurelm_tvhplayer": {
+      "title": "TVH Player",
+      "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
+      "author": "custom",
+      "icon": "aurelm_tvhplayer.png",
+      "iconSha256": "e58caa374e89c36706b63b11ea562c86fb7fa80f7ef42d01b10cd2ff049c55b8"
+    },
     "aurelm_wheel_heat": {
       "title": "Wheel Heating",
       "description": "Steering wheel heating on/off from a favourite button: for a heated iDrive 8 (LCI) steering wheel without its own button, fitted to an iDrive 7 car",
