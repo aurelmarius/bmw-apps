@@ -120,6 +120,8 @@ function fakeTvh(opts) {
             if (o.missing && o.missing.indexOf(q.profile) >= 0) { res.writeHead(404); return res.end(); }
             if (o.busy) { res.writeHead(503); return res.end(); }
             if (o.down) { res.socket.destroy(); return undefined; }   // no internet: the connection goes
+            // a profile the server's transcoder fails with at once (Tvheadend: "Failed to write mpegts header"): a clean end
+            if (o.broken && o.broken.indexOf(q.profile) >= 0) { res.writeHead(200, { 'Content-Type': 'video/mp2t' }); s.closed = true; return res.end(); }
             res.writeHead(200, { 'Content-Type': 'video/mp2t' });
             // live: the fixture's bytes at the stream's pace (or o.media), then on and on, until the client leaves
             const media = o.media || fs.readFileSync(path.join(FIXTURES, 'tvh_sample.ts'));
@@ -127,6 +129,8 @@ function fakeTvh(opts) {
             const chunk = o.chunk || 188 * 40;
             const t = setInterval(() => {
                 if (o.breakAfter && s.bytes >= o.breakAfter && !s.broke) { s.broke = true; clearInterval(t); res.socket.destroy(); return; }
+                // the server's transcoder stops the stream itself (HBO's sound jumping back in time): a clean end
+                if (o.endAfter && s.bytes >= o.endAfter && !s.ended) { s.ended = true; o.endAfter = 0; clearInterval(t); res.end(); return; }
                 if (o.stallAfter && s.bytes >= o.stallAfter && !s.stalled) { s.stalled = true; clearInterval(t); return; }   // open, silent
                 const part = media.slice(i % media.length, (i % media.length) + chunk);
                 i += part.length;
@@ -386,6 +390,25 @@ test('service: the sound level: +9 dB by default to each new player, the setting
         await ask(s.sock, { cmd: 'prefs', profile: 'mgu-hd', adaptive: true, gain: 40 });
         await until(() => ctl().indexOf('gain 15') >= 0 && ctl().indexOf('even off') >= 0, 5000, 'at most 15 dB');
     } finally { s.close(); srv.close(); try { fs.unlinkSync(log); } catch (e) { /* none */ } }
+});
+
+test('service: a stream the server ends itself comes back with the same profile; a profile that fails at once is passed over', async () => {
+    const srv = await fakeTvh({ endAfter: 188 * 400 });
+    const s = await signedIn(srv, { childEnv: { TVH_STREAM_DATA_MS: '1000' } });
+    try {
+        await ask(s.sock, { cmd: 'play', uuid: CH[0].uuid });
+        await until(() => srv.seen.streams.length >= 2, 10000, 'opened again after the server ended it');
+        await until(() => { const p = s.svc.status().playback; return p && p.state === 'playing' && p.reconnects >= 1; }, 10000, 'playing again');
+        assert.deepStrictEqual(srv.seen.streams.map((x) => x.profile), ['mgu-hd', 'mgu-hd'], 'the server\'s own end is no slow internet: no profile down');
+        // the internet goes (silence): a profile down, but the server fails mgu-sd at once: passed over, back to mgu-hd
+        srv.set('broken', ['mgu-sd']);
+        srv.set('stallAfter', srv.seen.streams[1].bytes + 188 * 200);
+        await until(() => srv.seen.streams.some((x) => x.profile === 'mgu-sd'), 10000, 'down to mgu-sd after the silence');
+        srv.set('stallAfter', 0);
+        const p = await until(() => { const x = s.svc.status().playback; return x && x.state === 'playing' && x.profile === 'mgu-hd' && x.badProfiles.indexOf('mgu-sd') >= 0 && x; }, 15000, 'mgu-sd passed over, mgu-hd playing');
+        assert.strictEqual(srv.seen.streams.filter((x) => x.profile === 'mgu-sd').length, 2, 'mgu-sd tried twice');
+        assert.ok(p.retrySince === null);
+    } finally { s.close(); srv.close(); }
 });
 
 test('service: no free tuner (503): tried 3 times, then said', async () => {

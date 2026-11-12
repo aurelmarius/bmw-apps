@@ -27,6 +27,14 @@
  * (`retryAt`); after 2 minutes, an error with `lost: true` (the app keeps its screen, a press tries again). What
  * trying again does not mend is said at once (refused, no channel or profile); no free tuner (503) and a player that
  * crashed are tried 3 times.
+ *
+ * 1.0.1 (the car and the server's log, 2026-11-12): what broke HBO HD was the server, not LTE: its transcoder stops a
+ * stream when the channel's MP2 sound jumps back in time ("non monotonically increasing dts ... muxer reported
+ * errors"), and closes the connection cleanly; and its mgu-sd profile failed at once, every time ("Failed to write
+ * mpegts header"), so the reconnection, gone a profile down, never came back. Now: a stream the server ends cleanly
+ * is opened again with the same profile (only a network failure takes one down); a profile whose stream ends at once
+ * (nothing played, within 8 s) twice is passed over for this channel's playing, said in the status (`badProfiles`),
+ * and the stream goes on with the last profile that played.
  */
 const LADDER = ['mgu-hd', 'mgu-sd', 'mgu-low'];
 const STALL_WINDOW_MS = 60000;
@@ -74,12 +82,14 @@ function createPlayback(o) {
     function phase(p) { st.phase = p; st.phaseAt = now(); }
 
     function ladder() { const l = ladderFor(prefs.profile, o.profiles ? o.profiles() : null); return l.length ? l : [prefs.profile]; }
+    /** the ladder without the profiles that failed at once on this playing */
+    function usable(c) { const l = ladder(), u = c && c.bad ? l.filter((p) => !c.bad[p]) : l; return u.length ? u : l; }
 
     /* ---------- the stream ---------- */
     async function open(c, why) {
         const id = ++ids;
         c.id = id; c.stream = null; c.player = { state: 'starting', fields: 0, interlaced: false }; c.played = false;
-        c.openedAt = now();
+        c.openedAt = now(); c.answered = false;
         set('loading'); phase('stream');
         log('stream ' + id + ': ' + c.ch.name + ' with ' + c.profile + (why ? ' (' + why + ')' : ''));
         let r;
@@ -97,7 +107,7 @@ function createPlayback(o) {
             return fail(c, why2);
         }
         c.stream = r;
-        c.bytes = 0;
+        c.bytes = 0; c.answered = true;
         phase('player');
         sink.start(id);
         if (!prefs.subs) sink.ctl(id, 'subs off');
@@ -122,12 +132,13 @@ function createPlayback(o) {
             const lim = c.gotData ? dataMs : firstDataMs;
             if (now() - c.lastData >= lim) ended('nothing from the server for ' + Math.round(lim / 1000) + ' s');
         }, Math.min(1000, Math.max(50, Math.round(dataMs / 4))));
-        const ended = (what) => {
+        const ended = (what, kind) => {
             if (cur !== c || c.id !== id || c.closing) return;
             sink.end(id);
-            broke(c, id, what);
+            broke(c, id, what, kind);
         };
-        res.on('end', () => ended('the stream ended'));
+        // the server closed it cleanly: its own doing (a transcoder error), not the network's
+        res.on('end', () => ended('the server ended the stream', 'ended'));
         res.on('error', (e) => ended('the stream broke: ' + e.message));
         res.on('aborted', () => ended('the server closed the stream'));
     }
@@ -136,8 +147,22 @@ function createPlayback(o) {
     function broke(c, id, why, kind) {
         if (cur !== c || c.id !== id) return;
         const played = c.played;
+        const quick = kind === 'ended' && c.answered && !played && now() - (c.openedAt || 0) < 8000;
         close(c);
         const t = now();
+        // a profile whose stream the server ends at once, twice: passed over for this playing (the server's profile
+        // is broken: 1.0.0 in the car, mgu-sd's "Failed to write mpegts header"), back to the last one that played
+        if (quick) {
+            c.fails = c.fails || {};
+            c.fails[c.profile] = (c.fails[c.profile] || 0) + 1;
+            if (c.fails[c.profile] >= 2) {
+                c.bad = c.bad || {};
+                c.bad[c.profile] = true;
+                const u = usable(c), next = c.good && !c.bad[c.good] ? c.good : u[0];
+                log('quality: ' + c.profile + ' fails on the server (its stream ends at once): passed over, ' + next + ' instead');
+                c.profile = next; c.switchedAt = t; c.cleanSince = t; c.stalls = []; c.stallSince = 0;
+            }
+        }
         if (!c.outageSince) { c.outageSince = t; c.tries = 0; c.busy = 0; c.crashes = 0; c.outageStepped = false; }
         if (kind === 'busy' && ++c.busy > RETRIES) return fail(c, why);
         if (kind === 'player' && ++c.crashes > RETRIES) return fail(c, why);
@@ -147,7 +172,7 @@ function createPlayback(o) {
         }
         // the internet went away under a stream that played: it comes back a profile lower (once a break)
         if (!kind && played && prefs.adaptive && !c.outageStepped) {
-            const l = ladder(), i = l.indexOf(c.profile), down = i >= 0 && i + 1 < l.length ? l[i + 1] : null;
+            const l = usable(c), i = l.indexOf(c.profile), down = i >= 0 && i + 1 < l.length ? l[i + 1] : null;
             if (down) {
                 log('quality: ' + c.profile + ' -> ' + down + ' (the stream broke)');
                 c.profile = down; c.switchedAt = t; c.cleanSince = t; c.stalls = []; c.stallSince = 0;
@@ -185,7 +210,7 @@ function createPlayback(o) {
         c.lastState = state;
         c.stalls = c.stalls.filter((x) => t - x < STALL_WINDOW_MS);
         if (!prefs.adaptive || t - c.switchedAt < SWITCH_COOLDOWN_MS) return false;
-        const l = ladder(), i = l.indexOf(c.profile);
+        const l = usable(c), i = l.indexOf(c.profile);
         const down = i >= 0 && i + 1 < l.length ? l[i + 1] : null, up = i > 0 ? l[i - 1] : null;
         if (down && (c.stalls.length >= STALLS || (c.stallSince && t - c.stallSince >= STALL_LONG_MS))) {
             step(c, down, c.stalls.length >= STALLS ? 'the stream ran dry ' + c.stalls.length + ' times in a minute' : 'the stream ran dry for ' + Math.round((t - c.stallSince) / 1000) + ' s');
@@ -261,7 +286,7 @@ function createPlayback(o) {
             if (ev.fields > 0) c.player.interlaced = true;
             if (s === 'playing' || s === 'buffering') {
                 if (st.state !== s) set(s);
-                if (s === 'playing') { c.played = true; if (c.outageSince) { log('stream ' + id + ': playing again after ' + Math.round((now() - c.outageSince) / 1000) + ' s'); } recovered(c); }
+                if (s === 'playing') { c.played = true; c.good = c.profile; if (c.fails) c.fails[c.profile] = 0; if (c.outageSince) { log('stream ' + id + ': playing again after ' + Math.round((now() - c.outageSince) / 1000) + ' s'); } recovered(c); }
                 adapt(c, s);
             }
         } else if (ev.ev === 'end' || ev.ev === 'exit') {
@@ -277,7 +302,7 @@ function createPlayback(o) {
         const c = cur;
         return Object.assign({}, st, {
             channel: c ? c.ch : null, profile: c ? c.profile : null, setting: prefs.profile, adaptive: prefs.adaptive, ladder: ladder(),
-            lowered: !!(c && c.profile !== ladder()[0]), reconnects: c ? c.reconnects : 0, since: c ? c.startedAt : null,
+            lowered: !!(c && c.profile !== ladder()[0]), badProfiles: c && c.bad ? Object.keys(c.bad) : [], reconnects: c ? c.reconnects : 0, since: c ? c.startedAt : null,
             kbytes: c && c.bytes ? Math.round(c.bytes / 1024) : 0,
             video: c && c.player.video ? c.player.video : null, interlaced: !!(c && c.player.interlaced), fields: c ? c.player.fields : 0,
             audioError: c ? c.player.audioError || null : null, buffered: c ? c.player.buffered : null,

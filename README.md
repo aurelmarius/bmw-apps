@@ -94,6 +94,7 @@ For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That whe
 3. **Users > Access entries**: a user of its own for the car, with **Web interface** and **Streaming (Basic)**, the channels it may watch and the profiles `mgu-*`. Configuration > General > Base: Authentication type **Digest**.
 4. The channels' logos: public PNG addresses as the channels' icons (Tvheadend's image cache **off**: with it on, the icon becomes `imagecache/<n>`, which asks for a user).
 5. The server reachable from the internet (a port forward of 9981).
+6. Check that each `mgu-*` profile plays on its own (Settings: the quality fixed at it). TVH Player passes over a profile whose stream the server ends at once (Status says which), but the car is better off with all three working.
 
 **Installing**: the Store installs the TVH Player service with the app (it needs mgu-uplink). **Restart the head unit once** after installing. Open **TVH Player** and press **Sign in**: scan the QR code with the iPhone (wireless CarPlay connected), enter the server's address (e.g. `tv.example.com:9981`), the user and the password (kept on the head unit, root's, 0600). If TVH from bmw-test-apps is installed, remove the app and its service first: both use the same uid for the internet.
 

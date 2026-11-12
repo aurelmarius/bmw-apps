@@ -44,7 +44,7 @@ const W = 1600, H = 520;
 const SOCK = process.env.TVH_SOCK || '/run/aurelm-tvhplayer.sock';
 // the service version this app is built with: an older one still running is asked once to end, and the socket
 // starts the new one at the next request
-const SERVICE_VERSION = '1.0.0';
+const SERVICE_VERSION = '1.0.1';
 // a channel is on: the picture and the speakers are wanted
 const ACTIVE = ['loading', 'playing', 'buffering'];
 const channelOn = (pb) => !!(pb && ACTIVE.indexOf(pb.state) >= 0);
@@ -141,8 +141,10 @@ function playRows(s, rows) {
         : pb.state === 'loading' && PHASE[pb.phase] ? PHASE[pb.phase] + (waited >= 3 ? ' (' + waited + ' s)' : '') + (pb.phase === 'retry' && pb.error ? ': ' + pb.error : '')
             : STATE[pb.state];
     const prof = pb.profile ? ', ' + quality(pb.profile) + (pb.lowered ? ' (lowered: slow internet)' : '') : '';
+    // a profile the server's transcoder fails with at once (1.0.0: mgu-sd's "Failed to write mpegts header"): passed over
+    const bad = pb.badProfiles && pb.badProfiles.length ? '; ' + pb.badProfiles.join(', ') + ' fails on the server (check it in Tvheadend): passed over' : '';
     rows.push({ label: 'Playing', state: pb.state === 'error' ? 'bad' : pb.state === 'playing' ? 'ok' : 'wait',
-        detail: chName(pb.channel) + ' - ' + what + prof + (pb.reconnects ? ', ' + pb.reconnects + ' reconnects' : '') });
+        detail: chName(pb.channel) + ' - ' + what + prof + (pb.reconnects ? ', ' + pb.reconnects + ' reconnects' : '') + bad });
     const fresh = pb.state !== 'loading' || pb.phase === 'player';
     const d = fresh ? pl.decoder : null, open = fresh && pl.open && pl.open.video;
     const v = s.mirror || {};
