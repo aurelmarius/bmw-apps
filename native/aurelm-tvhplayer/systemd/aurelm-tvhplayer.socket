@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=aurelm-tvhplayer control socket (the app TVH Player)
+
+[Socket]
+# The app's connection starts aurelm-tvhplayer.service; nothing of it runs before, at boot included. Root's alone
+# when made; sockgroup.js then gives it the TVH Player app's own group (0660), not tm_oap_app, which every app
+# has. The socket file goes when the socket stops (an uninstall).
+ListenStream=/run/aurelm-tvhplayer.sock
+SocketMode=0600
+RemoveOnStop=yes
+ExecStartPost=-/bin/sh -c 'ulimit -c 1; exec /usr/bin/node /var/opt/aurelm-tvhplayer/current/sockgroup.js'
+# no core dump from the command above to the crash handler
+LimitCORE=1
+
+[Install]
+WantedBy=sockets.target
