@@ -1,0 +1,348 @@
+{
+  "id": "aurelm_tvhplayer",
+  "title": "TVH Player",
+  "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
+  "version": "1.0.0",
+  "vendor": "custom",
+  "loggingId": "OA9T",
+  "iconGlyph": "TV",
+  "signals": {
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "org.genivi.am.commandinterface.CommandControl": {
+      "_instances": "1",
+      "_methods": [
+        "connect",
+        "disconnect",
+        "getListMainConnections"
+      ]
+    },
+    "org.genivi.am.routinginterface.RoutingControlObserver": {
+      "_instances": "1",
+      "_methods": [
+        "hookSourceAvailablityStatusChange"
+      ]
+    }
+  },
+  "requires": {
+    "aurelm-tvhplayer": "1.0.0"
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "TVH Player",
+      "buttons": [
+        [
+          "BTN_WATCH",
+          "Watch"
+        ],
+        [
+          "BTN_CHUP",
+          "Channel +"
+        ],
+        [
+          "BTN_CHDOWN",
+          "Channel -"
+        ],
+        [
+          "BTN_STOP",
+          "Stop"
+        ],
+        [
+          "BTN_PAGE",
+          "TV / Status"
+        ],
+        [
+          "BTN_SIGNIN",
+          "Sign in"
+        ],
+        [
+          "BTN_SIGNOUT",
+          "Sign out"
+        ],
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "parkedOnly",
+      "label": "Picture only while parked (off: also while driving; the driver sees the centre screen)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "aspect",
+      "label": "Picture shape (also the ASPECT button on the controls)",
+      "type": "choice",
+      "default": "fit",
+      "options": [
+        [
+          "fit",
+          "Fit: the whole picture, black bars"
+        ],
+        [
+          "zoom",
+          "Zoom: between"
+        ],
+        [
+          "fill",
+          "Fill: the screen full, the edges cut"
+        ]
+      ]
+    },
+    {
+      "key": "profile",
+      "label": "Streaming quality (the server's profile: the most the car asks for)",
+      "type": "choice",
+      "default": "mgu-hd",
+      "options": [
+        [
+          "mgu-hd",
+          "3 Mbit/s (720p, mgu-hd)"
+        ],
+        [
+          "mgu-sd",
+          "1.5 Mbit/s (576p, mgu-sd)"
+        ],
+        [
+          "mgu-low",
+          "0.7 Mbit/s (mgu-low)"
+        ]
+      ]
+    },
+    {
+      "key": "adaptive",
+      "label": "Lower the quality by itself when the internet is slow",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "subs",
+      "label": "Subtitles (a channel's DVB subtitles; in Tvheadend each mgu-* profile's Subtitle codec profile: Copy)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "gain",
+      "label": "Sound level (TV is 10-15 dB quieter than the radio; the peaks are limited, never clipped)",
+      "type": "choice",
+      "default": "9",
+      "options": [
+        [
+          "0",
+          "As broadcast"
+        ],
+        [
+          "3",
+          "+3 dB"
+        ],
+        [
+          "6",
+          "+6 dB"
+        ],
+        [
+          "9",
+          "+9 dB (about as loud as the radio)"
+        ],
+        [
+          "12",
+          "+12 dB"
+        ],
+        [
+          "15",
+          "+15 dB"
+        ]
+      ]
+    },
+    {
+      "key": "even",
+      "label": "Even volume (speech up, loud scenes down: for road noise)",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "tz",
+      "label": "Time zone of the guide's times",
+      "type": "choice",
+      "default": "eet",
+      "options": [
+        [
+          "eet",
+          "Romania (UTC+2, summer +3)"
+        ],
+        [
+          "cet",
+          "Central Europe (UTC+1, summer +2)"
+        ],
+        [
+          "wet",
+          "UK, Portugal (UTC, summer +1)"
+        ],
+        [
+          "utc",
+          "UTC"
+        ],
+        [
+          "system",
+          "The head unit's own"
+        ]
+      ]
+    },
+    {
+      "key": "cluster",
+      "label": "The channel on the instrument cluster (a card over the media widget; needs cluster-render from the Store, as Waze on cluster)",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "clusterX",
+      "label": "Cluster card: left / right",
+      "type": "choice",
+      "default": "0",
+      "options": [
+        [
+          "-160",
+          "left 160 px"
+        ],
+        [
+          "-120",
+          "left 120 px"
+        ],
+        [
+          "-80",
+          "left 80 px"
+        ],
+        [
+          "-40",
+          "left 40 px"
+        ],
+        [
+          "0",
+          "as placed"
+        ],
+        [
+          "40",
+          "right 40 px"
+        ],
+        [
+          "80",
+          "right 80 px"
+        ],
+        [
+          "120",
+          "right 120 px"
+        ],
+        [
+          "160",
+          "right 160 px"
+        ]
+      ]
+    },
+    {
+      "key": "clusterY",
+      "label": "Cluster card: up / down",
+      "type": "choice",
+      "default": "0",
+      "options": [
+        [
+          "-160",
+          "up 160 px"
+        ],
+        [
+          "-120",
+          "up 120 px"
+        ],
+        [
+          "-80",
+          "up 80 px"
+        ],
+        [
+          "-40",
+          "up 40 px"
+        ],
+        [
+          "0",
+          "as placed"
+        ],
+        [
+          "40",
+          "down 40 px"
+        ],
+        [
+          "80",
+          "down 80 px"
+        ],
+        [
+          "120",
+          "down 120 px"
+        ],
+        [
+          "160",
+          "down 160 px"
+        ]
+      ]
+    },
+    {
+      "key": "theme",
+      "label": "Colour theme",
+      "type": "choice",
+      "default": "m_tricolour",
+      "options": [
+        [
+          "m_red",
+          "M Red"
+        ],
+        [
+          "m_tricolour",
+          "M Tricolour"
+        ],
+        [
+          "ice",
+          "Ice White"
+        ],
+        [
+          "amber",
+          "Night Amber"
+        ]
+      ]
+    },
+    {
+      "key": "layout",
+      "label": "Screen layout",
+      "type": "choice",
+      "default": "full",
+      "options": [
+        [
+          "full",
+          "Full screen"
+        ],
+        [
+          "standard",
+          "Standard"
+        ]
+      ]
+    },
+    {
+      "key": "renderer",
+      "label": "Renderer",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "GPU 60 fps (default)"
+        ],
+        [
+          "software",
+          "Software"
+        ]
+      ]
+    }
+  ]
+}

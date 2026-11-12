@@ -78,6 +78,25 @@ For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That whe
 
 **Installing**: the Store installs the myAirPlay service with the app (it needs mgu-uplink for videos). **Restart the head unit once** after installing (the service listens for the app from the next start). If AirPlay Test from bmw-test-apps is installed, remove it and its service first: both use the same ports.
 
+### 5. 📺 TVH Player (`aurelm_tvhplayer`) + TVH Player service (`aurelm-tvhplayer`)
+*Your Tvheadend server's TV channels on the centre screen, over Tvheadend's HTTP interface.*
+
+* **Live TV from your own Tvheadend**: the channels the user may watch, with their logos, what is on now and how far it is; the programme of a channel for the next 24 hours (EPG). **Watch**, **Channel + / -**, or the channel list and the guide over the picture (touch, or the iDrive controller's knob and press; the lists scroll with a finger too).
+* **The picture is decoded on the GPU** (its own player, `native/tvh-player`, with FFmpeg) and shows over the whole centre screen **while parked** (setting, on by default); the sound plays on the car's speakers, raised to about the radio's level (TV is broadcast 10-15 dB quieter) with a limiter, and **Even volume** for films.
+* **The channel on the instrument cluster**: a card over the media widget with the logo, the programme, its times and what follows (needs [cluster-render](https://github.com/robertnisipeanu/idrive-apps/tree/main/native/cluster-render) from the Store, as Waze on cluster does; optional).
+* **DVB subtitles** (as HBO sends them), the times of the guide in your time zone, and a stream that **reconnects by itself** after a dead spot in the mobile network (for 2 minutes, a profile lower), with **the quality lowered by itself** when the internet is slow.
+* The server **transcodes** each channel with a profile made for the car (H.264 deinterlaced, AAC): about 3, 1.5 or 0.7 Mbit/s over LTE.
+* Developed and tested in the car as "TVH" in [bmw-test-apps](https://github.com/aurelmarius/bmw-test-apps). Details: [`native/aurelm-tvhplayer/README.md`](native/aurelm-tvhplayer/README.md), the player: [`native/tvh-player/README.md`](native/tvh-player/README.md).
+
+**On the server (once):** Tvheadend 4.3, Configuration > Stream (Expert view):
+1. **Codec Profiles**: `h264_vaapi` (or another H.264 encoder) with **Deinterlace** on, one per step: 720p at 3 Mbit/s, 576p at 1.5 Mbit/s, 360p at 0.7 Mbit/s, a key frame each second (GOP 25), no or 1 B frame; and `aac`, stereo, 128k (96k for the lowest).
+2. **Stream Profiles**: "Transcode/av-lib", container **MPEG-TS**, named **`mgu-hd`**, **`mgu-sd`**, **`mgu-low`**, each with its video and audio codec profile and **Subtitle codec profile: Copy**.
+3. **Users > Access entries**: a user of its own for the car, with **Web interface** and **Streaming (Basic)**, the channels it may watch and the profiles `mgu-*`. Configuration > General > Base: Authentication type **Digest**.
+4. The channels' logos: public PNG addresses as the channels' icons (Tvheadend's image cache **off**: with it on, the icon becomes `imagecache/<n>`, which asks for a user).
+5. The server reachable from the internet (a port forward of 9981).
+
+**Installing**: the Store installs the TVH Player service with the app (it needs mgu-uplink). **Restart the head unit once** after installing. Open **TVH Player** and press **Sign in**: scan the QR code with the iPhone (wireless CarPlay connected), enter the server's address (e.g. `tv.example.com:9981`), the user and the password (kept on the head unit, root's, 0600). If TVH from bmw-test-apps is installed, remove the app and its service first: both use the same uid for the internet.
+
 ---
 
 ## 🚀 Installation
@@ -90,7 +109,7 @@ For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That whe
    aurelmarius/bmw-apps
    ```
 4. Select **Releases** as the source type.
-5. Tap **Install** next to **Engine Care**, **Hybrid Cost** or **Wheel Heating**.
+5. Tap **Install** next to **Engine Care**, **Hybrid Cost**, **Wheel Heating**, **myAirPlay** or **TVH Player**.
 
 **Installed Engine Care or Hybrid Cost from v1.5.9 or older?** The apps' ids now carry the `aurelm_` prefix (`aurelm_engine_care`, `aurelm_hybrid_cost`), as the Store's publishing guide asks and as in [bmw-games](https://github.com/aurelmarius/bmw-games), so the Store sees them as new apps: install them again, then remove the old ones (without the prefix) from the Store. Their data (Engine Care's hours and oil service, Hybrid Cost's trips and prices, the settings) starts afresh.
 
