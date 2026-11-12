@@ -88,6 +88,18 @@ For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That whe
 * The server **transcodes** each channel with a profile made for the car (H.264 deinterlaced, AAC): about 3, 1.5 or 0.7 Mbit/s over LTE.
 * Developed and tested in the car as "TVH" in [bmw-test-apps](https://github.com/aurelmarius/bmw-test-apps). Details: [`native/aurelm-tvhplayer/README.md`](native/aurelm-tvhplayer/README.md), the player: [`native/tvh-player/README.md`](native/tvh-player/README.md).
 
+![TVH Player - the TV tab: the channels with their logos and what is on now, the selected channel's programme](docs/screenshots/aurelm_tvhplayer-tv.png)
+<sub>The TV tab: the channels with their logos, what is on now and how far it is; on the right the selected channel's programme, the chosen entry's time and description.</sub>
+
+![TVH Player - the guide over the picture](docs/screenshots/aurelm_tvhplayer-guide.png)
+<sub>Over the picture (touch it, or use the iDrive controller): the controls and the guide (EPG: the programme on the left, the one chosen on the right; < > the other channels, a press watches one).</sub>
+
+![TVH Player - the channel list over the picture](docs/screenshots/aurelm_tvhplayer-list.png)
+<sub>The channel list over the picture (LIST, or push the controller up): turn the knob and press, touch one, or drag it with a finger. The screenshots above are drawn by the app on a PC, with a simulated Tvheadend (made-up logos) and a test picture.</sub>
+
+![TVH Player - the channel on the instrument cluster, in the car](docs/screenshots/aurelm_tvhplayer-cluster.jpg)
+<sub>In the car: the channel on the instrument cluster, over the media widget (the logo, the programme with its times and the minutes left, what follows), beside the navigation map.</sub>
+
 **On the server (once):** Tvheadend 4.3, Configuration > Stream (Expert view):
 1. **Codec Profiles**: `h264_vaapi` (or another H.264 encoder) with **Deinterlace** on, one per step: 720p at 3 Mbit/s, 576p at 1.5 Mbit/s, 360p at 0.7 Mbit/s, a key frame each second (GOP 25), no or 1 B frame; and `aac`, stereo, 128k (96k for the lowest).
 2. **Stream Profiles**: "Transcode/av-lib", container **MPEG-TS**, named **`mgu-hd`**, **`mgu-sd`**, **`mgu-low`**, each with its video and audio codec profile and **Subtitle codec profile: Copy**.
