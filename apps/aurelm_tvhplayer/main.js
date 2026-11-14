@@ -39,6 +39,7 @@ const { createCarAudio } = require('./car_audio');
 const { createLogos, BOX: LOGO } = require('./logos');
 const png = require('./kit/png');
 const { createClusterCard } = require('./cluster_card');
+const { createWheel, IFACE: WHEEL_IFACE, FIELD: WHEEL_FIELD } = require('./wheel');
 
 const W = 1600, H = 520;
 const SOCK = process.env.TVH_SOCK || '/run/aurelm-tvhplayer.sock';
@@ -125,6 +126,9 @@ function steps(s) {
     if (pb && (channelOn(pb) || pb.state === 'error')) playRows(s, rows);
     else rows.push({ label: 'Playing', state: 'off', detail: 'nothing: press "Watch"' });
     // the card on the instrument cluster (cluster_card.js, through cluster-render)
+    // skip on the steering wheel (wheel.js)
+    const wh = s.wheel;
+    if (wh) rows.push({ label: 'Wheel', state: wh.seen ? 'ok' : 'off', detail: !wh.on ? 'off in the settings' : wh.seen ? 'last: ' + wh.last : 'skip < > on the steering wheel changes the channel while one is on' });
     const cl = s.cluster;
     if (cl) rows.push({ label: 'Cluster', state: cl.state === 'shown' ? 'ok' : cl.state === 'error' ? 'bad' : cl.state === 'off' || cl.state === 'missing' ? 'off' : 'wait', detail: cl.detail });
     return rows;
@@ -279,6 +283,15 @@ mgu.run({
             const ch = neighbour(chans.channels, from, d);
             if (ch) return playChannel(ch.uuid, d > 0 ? 'channel +' : 'channel -');
             return render();
+        }
+
+        /* ---------- skip on the steering wheel: channel - / + (wheel.js) ---------- */
+        const wheel = createWheel({ log, zap: (d) => { zap(d); render(); }, enabled: () => ctx.settings.get('wheel') !== false,
+            active: () => channelOn(st && st.playback) || lostOf(st && st.playback) });
+        if (ctx.signals && ctx.signals.watch) {
+            const h = {}; h[WHEEL_FIELD] = wheel.onSwitch;
+            ctx.signals.watch(WHEEL_IFACE, '1', h, log).then((r) => log.info('tvh: steering wheel ' + (r && r.available ? 'watched' : 'not available yet' + (r && r.error ? ': ' + r.error : ''))))
+                .catch((e) => log.warn('tvh: steering wheel: ' + e));
         }
 
         // Sign out, and Sign in while signed in, want a second press within 5 s (a stray press of the controller)
@@ -576,7 +589,7 @@ mgu.run({
                 : pb && pb.state === 'loading' && pb.retrySince ? { text: 'RECONNECTING', color: 'accent' } : pb && pb.state === 'buffering' ? { text: 'BUFFERING' }
                 : pb && channelOn(pb) ? { text: pb.state === 'playing' ? 'LIVE ' + (QUALITY[pb.profile] || pb.profile || '') : 'TUNING', color: 'cold' } : null;
             G.frame(cv, t, ['TV', 'Status'], tab, [busy && { text: busy, color: 'accent' }, page && { text: 'SIGN-IN ' + Math.ceil((page.left || 0) / 60) + ' MIN' }, live]);
-            if (st) { st.mirror = mirror.state(); st.carAudio = carAudio.state(); st.logoStats = logos.stats(); st.cluster = card.state(); }
+            if (st) { st.mirror = mirror.state(); st.carAudio = carAudio.state(); st.logoStats = logos.stats(); st.cluster = card.state(); st.wheel = wheel.state(); }
             if (tab === 1) drawStatus(cv, t, page); else drawTv(cv, t, page);
             return ui.image('MAIN_GFX', cv);
         }
