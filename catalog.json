@@ -109,17 +109,17 @@
     {
       "id": "aurelm_tvhplayer",
       "kind": "app",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "title": "TVH Player",
-      "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
+      "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. Skip < > on the steering wheel changes the channel. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm_tvhplayer@1.0.1.tgz",
-        "size": 607968,
-        "sha256": "9b75ba6840316c06f2bf9006654897740faac1afb33f6862b524f41c5919b0d7",
-        "url": "packages/aurelm_tvhplayer@1.0.1.tgz"
+        "name": "aurelm_tvhplayer@1.0.2.tgz",
+        "size": 609540,
+        "sha256": "d85bef854d83a76dde84f6141950c877ab84a3eeaa8fb6d51001a4bbf2e9e718",
+        "url": "packages/aurelm_tvhplayer@1.0.2.tgz"
       },
       "uninstallable": true,
       "icon": "aurelm_tvhplayer.png",
