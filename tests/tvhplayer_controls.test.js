@@ -257,6 +257,33 @@ test('the cluster card: drawn on cluster-render\'s panel while a channel plays, 
     card.close();
 });
 
+test('skip on the steering wheel: > channel +, < channel -, when let go, once a press; nothing while no channel is on or the setting is off', () => {
+    const { createWheel } = require(path.join(__dirname, '..', 'apps', 'aurelm_tvhplayer', 'wheel'));
+    const zaps = [];
+    let on = true, active = true;
+    const w = createWheel({ zap: (d) => zaps.push(d), enabled: () => on, active: () => active });
+    const S = (v) => ({ operationPushButtonAudioAutomaticTuningSteeringWheel: v });
+    w.onSwitch(S('SUCHLAUF_AUFWAERTS_MENUE_SKIP_RECHTS'));
+    w.onSwitch(S('SUCHLAUF_AUFWAERTS_MENUE_SKIP_RECHTS'));   // the same press, sent again
+    assert.deepStrictEqual(zaps, [], 'nothing while it is down');
+    w.onSwitch(S('KEINE_AKTION'));
+    assert.deepStrictEqual(zaps, [1], 'right, let go: channel +');
+    w.onSwitch(S('KEINE_AKTION'));
+    assert.deepStrictEqual(zaps, [1], 'a second let-go is no press');
+    w.onSwitch('SUCHLAUF_ABWAERTS_MENUE_SKIP_LINKS'); w.onSwitch('KEINE_AKTION');
+    assert.deepStrictEqual(zaps, [1, -1], 'left: channel - (the value as a string too)');
+    assert.ok(w.state().seen && /channel -/.test(w.state().last));
+    active = false;
+    w.onSwitch(S('SUCHLAUF_AUFWAERTS_MENUE_SKIP_RECHTS')); w.onSwitch(S('KEINE_AKTION'));
+    assert.deepStrictEqual(zaps, [1, -1], 'no channel on: the press is not ours');
+    active = true; on = false;
+    w.onSwitch(S('SUCHLAUF_AUFWAERTS_MENUE_SKIP_RECHTS')); w.onSwitch(S('KEINE_AKTION'));
+    assert.deepStrictEqual(zaps, [1, -1], 'off in the settings');
+    assert.strictEqual(w.state().on, false);
+    w.onSwitch(S('LAUTSTAERKE_PLUS')); w.onSwitch(null);
+    assert.deepStrictEqual(zaps, [1, -1], 'other buttons: nothing');
+});
+
 let failed = 0;
 for (const t of tests) {
     try { t.f(); console.log('ok   ' + t.n); } catch (e) { failed++; console.log('FAIL ' + t.n + '\n     ' + (e && e.stack || e)); }

@@ -1,12 +1,16 @@
 {
   "id": "aurelm_tvhplayer",
   "title": "TVH Player",
-  "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
-  "version": "1.0.1",
+  "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. Skip < > on the steering wheel changes the channel. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
+  "version": "1.0.2",
   "vendor": "custom",
   "loggingId": "OA9T",
   "iconGlyph": "TV",
   "signals": {
+    "de.bmw.infotainment.controlelements.SteeringWheelPushButton": {
+      "_instances": "1",
+      "statusSearchSwitch1": "rs"
+    },
     "de.bmw.infotainment.vehicle.Vehicle2": {
       "statusCarSpeed2": "rs"
     },
@@ -165,6 +169,12 @@
       "label": "Even volume (speech up, loud scenes down: for road noise)",
       "type": "bool",
       "default": false
+    },
+    {
+      "key": "wheel",
+      "label": "Skip on the steering wheel: channel - / + (while a channel is on)",
+      "type": "bool",
+      "default": true
     },
     {
       "key": "tz",
