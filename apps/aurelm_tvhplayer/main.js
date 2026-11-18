@@ -168,7 +168,7 @@ function playRows(s, rows) {
     let snd;
     if (pb.audioError) snd = { state: 'bad', detail: pb.audioError };
     else if (!a) snd = { state: 'wait', detail: fresh && pl.open && pl.running ? 'no sound in the stream yet' : 'waiting for the stream' };
-    else if (!a.ok) snd = { state: 'bad', detail: a.error };
+    else if (!a.ok) snd = a.retrying ? { state: 'wait', detail: 'the sound device is busy (another app\'s sound): taking it over... (' + a.error + ')' } : { state: 'bad', detail: a.error };
     else {
         const n = String(a.codec).toUpperCase() + ' ' + a.channels + 'ch' + (tk.aplayed ? ', ' + tk.aplayed + ' played' : '') + (tk.aunread ? ', ' + tk.aunread + ' unread' : '');
         // the level: raised by the setting, the peaks held under -1 dBFS (the share of samples the limiter lowered)
@@ -472,7 +472,9 @@ mgu.run({
             mirror.update({ rx: rxOf(st), pageVisible: shown(), driving: parkedOnly() && parked.moving() });
             // the speakers while a channel is on, and between two channels (each a new player); 5 s more after it
             const pl = st && st.player;
-            const soundFailed = !!(pl && pl.running && pl.audio && pl.audio.ok === false);
+            // a device that refuses for good: no speakers; one busy (tvh-player 1.0.4 tries again each second: Music Assistant
+            // had it, and lets go once it sees this app's claim) still wants them, so the claim is there to be seen
+            const soundFailed = !!(pl && pl.running && pl.audio && pl.audio.ok === false && !pl.audio.retrying);
             const on = channelOn(pb) && !soundFailed;
             if (on) soundUntil = Date.now() + 5000;
             carAudio.want(on || Date.now() < soundUntil);

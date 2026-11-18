@@ -277,7 +277,8 @@ function createPlayback(o) {
         if (ev.ev === 'open') {
             c.player.video = ev.video || null; c.player.audioCodec = ev.audio ? ev.audio.codec : null;
             if (ev.video && ev.video.interlaced) { c.player.interlaced = true; log('stream ' + id + ': interlaced: profile ' + c.profile + ' does not deinterlace'); }
-        } else if (ev.ev === 'audio' && ev.ok === false) c.player.audioError = ev.error;
+        } else if (ev.ev === 'audio' && ev.ok === false) c.player.audioError = ev.retrying ? null : ev.error;   // retrying: the device busy (Music Assistant letting go)
+        else if (ev.ev === 'audio' && ev.ok) c.player.audioError = null;
         else if (ev.ev === 'subs') c.player.subs = ev.ok ? { lang: ev.lang || '' } : { error: ev.error };
         else if (ev.ev === 'error') c.player.error = ev.error;
         else if (ev.ev === 'tick') {
