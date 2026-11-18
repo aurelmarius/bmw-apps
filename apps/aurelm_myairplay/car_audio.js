@@ -15,32 +15,71 @@
  * that is not ours is left alone, and the sound is not connected over it: the state says the speakers are taken.
  * The source is marked unavailable only when no connection is left on 287 (the other app may have connected meanwhile).
  *
- *   const audio = createCarAudio(ctx.signals, log);
- *   audio.want(true | false);     // the receiver has an iPhone with sound and the app is up
- *   audio.state()                 // { on, connected, error }
+ * The latest app to want the sound gets it (Music Assistant 0.1.7, in every app on 287): each app that wants the
+ * speakers says so in a file of its own in a shared folder (/tmp/aurelm-287/<app>.json, the time it started
+ * wanting them); the app holding 287 that sees a newer one there lets go (its disconnect) and tells its app
+ * (`onYield`: Music Assistant pauses), and the newer one, which saw 287 taken, connects as soon as it is free
+ * (it looks every second). An app made to stop then (`yieldStops`: Music Assistant) withdraws its claim, and a
+ * later play of its claims again (not in the first 5 s: the music still reported playing). Before, an app
+ * found 287 taken and waited: TVH Player's picture came without its sound while Music Assistant played on. An app that lets go waits, as before, until 287 is free again.
+ *
+ *   const audio = createCarAudio(ctx.signals, log, { file, app: 'TVH Player', onYield: (by) => ..., yieldStops });
+ *   audio.want(true | false);     // called again and again (each status): the checks run from there
+ *   audio.state()                 // { on, connected, error, taken, yieldedTo }
  */
 const AM = 'org.genivi.am.commandinterface.CommandControl';
 const AMR = 'org.genivi.am.routinginterface.RoutingControlObserver';
+const path = require('path');
 const SRC = 287, SINK = 1024;
 
 function createCarAudio(signals, log, opts) {
     const o = opts || {};
     const fs = o.fs || require('fs');
-    const am = { p: null, r: null, id: null, on: false, q: Promise.resolve(), connected: false, error: null, taken: false };
+    const am = { p: null, r: null, id: null, on: false, q: Promise.resolve(), connected: false, error: null, taken: false, checked: 0, claimAt: 0, yieldedTo: null, yieldedAt: 0 };
+    /* ---------- the claims: who wants the speakers, and since when ---------- */
+    const claimDir = o.claimDir || '/tmp/aurelm-287';
+    const me = String(o.app || 'app').replace(/[^A-Za-z0-9_-]/g, '_');
+    const myClaim = () => path.join(claimDir, me + '.json');
+    function claim(on) {
+        try {
+            if (!on) { fs.unlinkSync(myClaim()); return; }
+            try { fs.mkdirSync(claimDir); fs.chmodSync(claimDir, 0o1777); } catch (e) { /* there already */ }
+            am.claimAt = Date.now();
+            fs.writeFileSync(myClaim(), JSON.stringify({ app: o.app || me, at: am.claimAt }));
+            try { fs.chmodSync(myClaim(), 0o644); } catch (e) { /* not ours to change */ }
+        } catch (e) { /* none, or not writable: the apps then keep to the old rule */ }
+    }
+    /** the newest claim of another app, if newer than ours */
+    function newerClaim() {
+        let best = null;
+        try {
+            fs.readdirSync(claimDir).forEach((f) => {
+                if (!/\.json$/.test(f) || f === me + '.json') return;
+                try { const c = JSON.parse(fs.readFileSync(path.join(claimDir, f), 'utf8')); if (c && c.at > am.claimAt && (!best || c.at > best.at)) best = c; } catch (e) { /* half written */ }
+            });
+        } catch (e) { /* no folder */ }
+        return best;
+    }
     // our connection's id, kept across a crash; null: none of ours
-    const bootId = () => { try { return fs.readFileSync(o.bootIdPath || '/proc/sys/kernel/random/boot_id', 'utf8').trim(); } catch (e) { return null; } };
+    const bootId = () => { try { return (o.bootId ? o.bootId() : fs.readFileSync(o.bootIdPath || '/proc/sys/kernel/random/boot_id', 'utf8')).trim(); } catch (e) { return null; } };
+    // our id, only if saved in this boot (an id from before a restart may be another app's now)
     const saved = () => {
         try {
-            const v = JSON.parse(fs.readFileSync(o.file, 'utf8'));
-            // from an earlier start of the head unit: that number may now be another app's connection
-            if (v.mainConnectionID == null || !v.bootId || v.bootId !== bootId()) return null;
-            return v.mainConnectionID;
+            const j = JSON.parse(fs.readFileSync(o.file, 'utf8'));
+            if (j.mainConnectionID == null || !j.bootId || j.bootId !== bootId()) return null;
+            return j.mainConnectionID;
         } catch (e) { return null; }
     };
     const save = (id) => {
         if (!o.file) return;
         try { if (id == null) fs.unlinkSync(o.file); else fs.writeFileSync(o.file, JSON.stringify({ mainConnectionID: id, bootId: bootId() })); } catch (e) { /* none, or not writable */ }
     };
+    /** unavailable again, only when nothing but ours (just disconnected, maybe still listed) is on 287 */
+    async function release(ours) {
+        const left = (await on287().catch(() => [])).filter((c) => c.mainConnectionID !== ours);
+        if (left.length) { log.info('car audio: 287 in use again (' + left.map((c) => c.mainConnectionID).join(', ') + '): left available'); return; }
+        await avail(false);
+    }
     // a fresh proxy answers "Service unavailable" until the provider is found: wait for it (max 5 s)
     async function proxy(iface) {
         const p = await signals.proxy(iface, '1');
@@ -56,21 +95,15 @@ function createCarAudio(signals, log, opts) {
         const list = Array.isArray(r) ? r : (r && Object.values(r).find(Array.isArray)) || [];
         return list.filter((x) => x && x.sourceID === SRC);
     }
-    /** our connection a crash or a power-off left: disconnected, and the source unavailable again */
+    /** our connection a crash left (in this boot): disconnected, and the source unavailable again */
     async function leftover() {
         const id = saved();
-        if (id == null) { save(null); return; }   // none, or from an earlier start: dropped
+        if (id == null) { save(null); return; }   // none, or one from before a restart: forgotten, never disconnected
         if ((await on287()).some((c) => c.mainConnectionID === id)) {
             log.info('car audio: our leftover ' + id + ' ' + JSON.stringify(await signals.call(am.p, 'disconnect', { mainConnectionID: id })));
-            await release();
+            await release(id);
         }
         save(null);
-    }
-    /** the source unavailable, unless another app's connection is on it now */
-    async function release() {
-        const left = await on287();
-        if (left.length) { log.info('car audio: 287 still in use (' + left.map((c) => c.mainConnectionID).join(', ') + '): left available'); return; }
-        await avail(false);
     }
     async function ready() {
         if (am.p) return;
@@ -80,22 +113,54 @@ function createCarAudio(signals, log, opts) {
     }
     am.q = am.q.then(ready).catch((e) => { am.error = String(e); log.warn('car audio start: ' + e); });
 
+    async function disconnectOurs() {
+        if (am.id == null) { am.connected = false; return; }
+        const was = am.id;
+        log.info('car audio: disconnect ' + JSON.stringify(await signals.call(am.p, 'disconnect', { mainConnectionID: am.id })));
+        am.id = null;
+        save(null);
+        am.connected = false;
+        await release(was);
+    }
     function want(on) {
-        // while another app holds 287, look again every few seconds: once it is free, the sound goes on
-        if (on === am.on && !(on && am.taken && Date.now() - am.checked >= 3000)) return;
+        const now = Date.now();
+        // an app that stops when it lets go (yieldStops: Music Assistant pauses): its "on" in the next seconds is the
+        // music still reported playing, not a new start; after that, an "on" is one (the user's play) and claims again
+        if (on && !am.on && now - am.yieldedAt < 5000) return;
+        if (on && !am.on) claim(true);          // from now on this app wants the speakers
+        if (!on && am.on) claim(false);
+        // called again while on: connected, look for a newer claim every 2 s; taken, look whether 287 is free every
+        // second when ours is the newest claim (the other one lets go), else every 3 s
+        if (on === am.on) {
+            if (!on) return;
+            const every = am.connected ? 2000 : am.taken ? (newerClaim() ? 3000 : 1000) : Infinity;
+            if (now - am.checked < every) return;
+        }
         am.on = on;
-        am.checked = Date.now();
+        am.checked = now;
         am.q = am.q.then(async () => {
             await ready();
             if (on) {
-                // another app's sound on 287 (Emby): not ours to take or to end
-                const other = (await on287()).filter((c) => c.mainConnectionID !== am.id);
-                if (other.length) {
-                    am.taken = true; am.connected = false; am.error = null;
-                    log.info('car audio: 287 is in use (' + other.map((c) => c.mainConnectionID).join(', ') + '): not connecting');
+                if (am.connected && am.id != null) {
+                    // a newer app wants the speakers: ours goes, and the app is told (Music Assistant pauses)
+                    const c = newerClaim();
+                    if (!c) return;
+                    log.info('car audio: ' + c.app + ' wants the speakers (since ' + new Date(c.at).toISOString() + '): letting go');
+                    await disconnectOurs();
+                    am.taken = true; am.yieldedTo = c.app;
+                    if (o.yieldStops) { am.on = false; am.yieldedAt = Date.now(); claim(false); }
+                    if (o.onYield) try { o.onYield(c.app); } catch (e) { log.warn('car audio onYield: ' + e); }
                     return;
                 }
-                am.taken = false;
+                // another app's sound on 287: not ours to end; it lets go if our claim is the newer
+                const other = (await on287()).filter((c) => c.mainConnectionID !== am.id);
+                if (other.length) {
+                    if (!am.taken) log.info('car audio: 287 is in use (' + other.map((c) => c.mainConnectionID).join(', ') + '): not connecting' + (newerClaim() ? '' : ' (waiting for it to let go)'));
+                    am.taken = true; am.connected = false; am.error = null;
+                    return;
+                }
+                if (am.yieldedTo && newerClaim()) return;   // we let go, and that app still wants the speakers
+                am.taken = false; am.yieldedTo = null;
                 await avail(true);
                 const r = await signals.call(am.p, 'connect', { sourceID: SRC, sinkID: SINK });
                 const ok = r && (r.amError === 'E_OK' || r.amError === 0) && r.mainConnectionID != null;
@@ -104,19 +169,15 @@ function createCarAudio(signals, log, opts) {
                 am.connected = ok;
                 am.error = ok ? null : 'connect refused: ' + JSON.stringify(r);
                 log.info('car audio: connect ' + JSON.stringify(r));
-                if (!ok) await release();
+                if (ok) claim(true);                    // connected now: the newest claim again
+                else await release(null);
             } else {
-                am.taken = false;
-                if (am.id == null) { am.connected = false; return; }
-                log.info('car audio: disconnect ' + JSON.stringify(await signals.call(am.p, 'disconnect', { mainConnectionID: am.id })));
-                am.id = null;
-                save(null);
-                am.connected = false;
-                await release();
+                am.taken = false; am.yieldedTo = null;
+                await disconnectOurs();
             }
         }).catch((e) => { am.error = String(e); log.warn('car audio: ' + e); });
     }
-    return { want, state: () => ({ on: am.on, connected: am.connected, error: am.error, taken: am.taken }) };
+    return { want, state: () => ({ on: am.on, connected: am.connected, error: am.error, taken: am.taken, yieldedTo: am.yieldedTo }) };
 }
 
 module.exports = { createCarAudio, SRC, SINK };

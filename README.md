@@ -86,6 +86,7 @@ For an iDrive 7 car fitted with a heated iDrive 8 (LCI) steering wheel. That whe
 * **The channel on the instrument cluster**: a card over the media widget with the logo, the programme, its times and what follows (needs [cluster-render](https://github.com/robertnisipeanu/idrive-apps/tree/main/native/cluster-render) from the Store, as Waze on cluster does; optional).
 * **DVB subtitles** (as HBO sends them), the times of the guide in your time zone, and a stream that **reconnects by itself** after a dead spot in the mobile network (for 2 minutes, a profile lower), with **the quality lowered by itself** when the internet is slow.
 * The server **transcodes** each channel with a profile made for the car (H.264 deinterlaced, AAC): about 3, 1.5 or 0.7 Mbit/s over LTE.
+* **The speakers go to the app started last** (1.0.3): with Music Assistant (bmw-test-apps) playing, a channel takes the sound and Music Assistant pauses; the same with myAirPlay (1.0.1) and Emby. Before, the picture came without its sound.
 * Developed and tested in the car as "TVH" in [bmw-test-apps](https://github.com/aurelmarius/bmw-test-apps). Details: [`native/aurelm-tvhplayer/README.md`](native/aurelm-tvhplayer/README.md), the player: [`native/tvh-player/README.md`](native/tvh-player/README.md).
 
 ![TVH Player - the TV tab: the channels with their logos and what is on now, the selected channel's programme](docs/screenshots/aurelm_tvhplayer-tv.png)

@@ -83,7 +83,7 @@ test('287 in use by another app: not connected, reported, connected once it is f
     a.want(true);
     await settle();
     assert.deepStrictEqual(s.calls, ['getListMainConnections']);
-    assert.deepStrictEqual(a.state(), { on: true, connected: false, error: null, taken: true });
+    assert.deepStrictEqual(a.state(), { on: true, connected: false, error: null, taken: true, yieldedTo: null });
     // off while taken: nothing of the other app's is touched
     a.want(false);
     await settle();
@@ -104,7 +104,7 @@ test('on: available, then connect 287 -> 1024; off: disconnect it, unavailable a
     a.want(true); a.want(true);
     await settle();
     assert.deepStrictEqual(s.calls, ['getListMainConnections', 'hookSourceAvailablityStatusChange 287 A_AVAILABLE', 'connect 287->1024']);
-    assert.deepStrictEqual(a.state(), { on: true, connected: true, error: null, taken: false });
+    assert.deepStrictEqual(a.state(), { on: true, connected: true, error: null, taken: false, yieldedTo: null });
     assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { mainConnectionID: 42, bootId: 'boot-now' });
     s.calls.length = 0;
     a.want(false);
