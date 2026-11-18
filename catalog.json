@@ -27,7 +27,7 @@
     {
       "id": "aurelm-tvhplayer",
       "kind": "tool",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "title": "TVH Player service",
       "description": "For the app TVH Player: Tvheadend's channels on the head unit. The channel comes with one of the server's transcoding profiles (mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced by the server, AAC, MPEG-TS), is decoded on the GPU into mgu-render's frame file (the app shows it while parked) and played into SmartXbar's CarLife input. Signs in once from the phone (a page on the car Wi-Fi, opened from the app's QR code); keeps the server, the user and the password (root's, 0600). Its internet goes through mgu-uplink, as uid 13103 only; the player runs as nobody.",
       "author": "aurelmarius",
@@ -35,10 +35,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm-tvhplayer@1.0.1.tgz",
-        "size": 927616,
-        "sha256": "f4ff220fbdfdc15a4fc3cf93d5c2c5262734a526ae7883dc8a9b140aa418595e",
-        "url": "packages/aurelm-tvhplayer@1.0.1.tgz"
+        "name": "aurelm-tvhplayer@1.0.2.tgz",
+        "size": 927711,
+        "sha256": "f1016ecd1b8b3a6a7582090899dc80a66f5c4b661b52f13e395a319ba0844899",
+        "url": "packages/aurelm-tvhplayer@1.0.2.tgz"
       },
       "requires": {
         "mgu-deploy": "0.7.0",
@@ -109,23 +109,23 @@
     {
       "id": "aurelm_tvhplayer",
       "kind": "app",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "title": "TVH Player",
       "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. Skip < > on the steering wheel changes the channel. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm_tvhplayer@1.0.3.tgz",
-        "size": 611185,
-        "sha256": "0859b23f949ede7110207e94beddd53b79a8e1e78bac6a5ef4eb9c5a307a26c7",
-        "url": "packages/aurelm_tvhplayer@1.0.3.tgz"
+        "name": "aurelm_tvhplayer@1.0.4.tgz",
+        "size": 611394,
+        "sha256": "0f11bc32acdb8fedf69f2534282a590aff35b2bfeee5de9f91c35dc1b68ec6e1",
+        "url": "packages/aurelm_tvhplayer@1.0.4.tgz"
       },
       "uninstallable": true,
       "icon": "aurelm_tvhplayer.png",
       "iconSha256": "e58caa374e89c36706b63b11ea562c86fb7fa80f7ef42d01b10cd2ff049c55b8",
       "requires": {
-        "aurelm-tvhplayer": "1.0.1"
+        "aurelm-tvhplayer": "1.0.2"
       }
     },
     {
