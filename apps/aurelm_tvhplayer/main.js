@@ -386,7 +386,7 @@ mgu.run({
                 }
             } catch (e) { log.warn('tvh page: ' + e); }
         }
-        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? path.join(ctx.dataDir, 'car-audio.json') : null });
+        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? path.join(ctx.dataDir, 'car-audio.json') : null, app: 'TVH Player' });
         setZone(() => ctx.settings.get('tz') || 'eet');
         const parkedOnly = () => ctx.settings.get('parkedOnly') !== false;
         /** the player as the mirror view knows a receiver: running, its decoder, pictures shown */

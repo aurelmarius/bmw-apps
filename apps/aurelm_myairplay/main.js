@@ -267,7 +267,7 @@ mgu.run({
         // (setting endOnLeave, on): 1.5 s after the page went, once per session
         let goneAt = 0, ended = false;
         // stage 3: the speakers while the receiver has an iPhone with sound and the app is up (leaving it ends the session)
-        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? require('path').join(ctx.dataDir, 'car-audio.json') : null });
+        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? require('path').join(ctx.dataDir, 'car-audio.json') : null, app: 'myAirPlay' });
         function syncMirror() {
             const rxOn = st && st.mode === 'receiver' && st.active ? st.rx : null;
             // "Picture only while parked" (on by default): off, the picture stays while driving (for passengers)
