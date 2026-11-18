@@ -734,7 +734,9 @@ void audio_thread() {
     AVPacket *pkt = av_packet_alloc();
     AVFrame *fr = av_frame_alloc();
     AudioOut out;
-    bool opened = false, failed = false;
+    bool opened = false;
+    double retryAt = 0;  /* the device refused (busy: another app's sound on it): tried again each second */
+    std::string lastErr;
     std::vector<int16_t> buf;
     double next = NAN;   /* the timestamp after the last frame: frames without one follow it */
     Packet p;
@@ -757,14 +759,20 @@ void audio_thread() {
             if (isnan(pts)) pts = g_clock.now();
             const double dur = (double) fr->nb_samples / rate;
             next = pts + dur;
-            if (!opened && !failed) {
+            /* the device: opened when the sound starts, and while it refuses (busy: Music Assistant's player had it when
+               the channel started, and lets it go once it sees this app wants the speakers) again each second, as
+               long as the channel plays; before 1.0.4 one refusal left the channel silent */
+            if (!opened && mono() >= retryAt) {
                 if (out.open(rate)) {
                     opened = true;
                     event("{\"ev\":\"audio\",\"ok\":true,\"device\":\"%s\",\"codec\":\"%s\",\"rate\":%u,\"channels\":%d}",
                           js(out.target).c_str(), avcodec_get_name(g_apar->codec_id), rate, fr->ch_layout.nb_channels);
                 } else {
-                    failed = true;
-                    event("{\"ev\":\"audio\",\"ok\":false,\"error\":\"%s\"}", js(out.err).c_str());
+                    retryAt = mono() + 1.0;
+                    if (out.err != lastErr) {
+                        lastErr = out.err;
+                        event("{\"ev\":\"audio\",\"ok\":false,\"error\":\"%s\",\"retrying\":true}", js(out.err).c_str());
+                    }
                 }
             }
             /* with a picture, the picture starts the clock; without one (or none for 3 s), the sound does */
