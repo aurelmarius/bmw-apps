@@ -59,6 +59,13 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG exists. Uploading assets to existing release..."
             gh release upload "$TAG" packages/*.tgz mgu-store.json *.png --clobber
+            # the packages an earlier build of this release left (an older version of a component): the Store
+            # refuses a release that has a component twice ("catalog lists ... twice")
+            for a in $(gh release view "$TAG" --json assets -q '.assets[].name'); do
+              case "$a" in
+                *.tgz) if [ ! -f "packages/$a" ]; then echo "Removing stale $a"; gh release delete-asset "$TAG" "$a" -y; fi ;;
+              esac
+            done
           else
             echo "Creating fresh Draft Release $TAG..."
             gh release create "$TAG" packages/*.tgz mgu-store.json *.png \
