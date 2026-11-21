@@ -109,17 +109,17 @@
     {
       "id": "aurelm_tvhplayer",
       "kind": "app",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "title": "TVH Player",
       "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. Skip < > on the steering wheel changes the channel. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm_tvhplayer@1.0.5.tgz",
-        "size": 612002,
-        "sha256": "d664ea834b50413411f9ee52a37cbf363caa448a7e03dc9153674cb2388cb409",
-        "url": "packages/aurelm_tvhplayer@1.0.5.tgz"
+        "name": "aurelm_tvhplayer@1.0.6.tgz",
+        "size": 616631,
+        "sha256": "6c55d35e22c35078f0771aa99700863b89056a39236f6d3813ae5af5bf1ac2e2",
+        "url": "packages/aurelm_tvhplayer@1.0.6.tgz"
       },
       "uninstallable": true,
       "icon": "aurelm_tvhplayer.png",
