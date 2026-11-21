@@ -87,17 +87,17 @@
     {
       "id": "aurelm_myairplay",
       "kind": "app",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "title": "myAirPlay",
       "description": "The head unit as an AirPlay receiver for an iPhone: screen mirroring on the centre screen with the sound on the car's speakers (also with wireless CarPlay connected), and videos sent with the AirPlay button (YouTube) played by the head unit itself, with their controls on the iDrive. The picture shows while parked. Needs the myAirPlay service.",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm_myairplay@1.0.1.tgz",
-        "size": 576952,
-        "sha256": "1ef5bb93b90506f7076f51109073735908d97519b218b0bd30be6af98500ef77",
-        "url": "packages/aurelm_myairplay@1.0.1.tgz"
+        "name": "aurelm_myairplay@1.0.2.tgz",
+        "size": 577365,
+        "sha256": "95da044c13f64a04c1781077c28701c86f723cce3c6d62affca2402b76d19d34",
+        "url": "packages/aurelm_myairplay@1.0.2.tgz"
       },
       "uninstallable": true,
       "icon": "aurelm_myairplay.png",
@@ -109,17 +109,17 @@
     {
       "id": "aurelm_tvhplayer",
       "kind": "app",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "title": "TVH Player",
       "description": "Tvheadend's TV channels on the centre screen: sign in once from the phone (QR code), then Watch, Channel + / -, or the channel list over the picture. Skip < > on the steering wheel changes the channel. The picture shows while parked, the sound plays on the car's speakers. The server transcodes (profiles mgu-hd, mgu-sd, mgu-low: H.264 deinterlaced, AAC) and the profile goes down by itself when the internet is slow. Needs the TVH Player service.",
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "aurelm_tvhplayer@1.0.4.tgz",
-        "size": 611394,
-        "sha256": "0f11bc32acdb8fedf69f2534282a590aff35b2bfeee5de9f91c35dc1b68ec6e1",
-        "url": "packages/aurelm_tvhplayer@1.0.4.tgz"
+        "name": "aurelm_tvhplayer@1.0.5.tgz",
+        "size": 612002,
+        "sha256": "d664ea834b50413411f9ee52a37cbf363caa448a7e03dc9153674cb2388cb409",
+        "url": "packages/aurelm_tvhplayer@1.0.5.tgz"
       },
       "uninstallable": true,
       "icon": "aurelm_tvhplayer.png",
