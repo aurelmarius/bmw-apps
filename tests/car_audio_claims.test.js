@@ -115,6 +115,33 @@ test('an app with the old rule (no claim) holding 287 is never taken from: the n
     assert.deepStrictEqual(am.list.map((c) => c.mainConnectionID), [9]);
 });
 
+test('the car switches to another source (our connection ended by it): the app told, the speakers not taken back until resume()', async () => {
+    const am = fakeAm(), claims = dir();
+    const lost = [];
+    const ma = createCarAudio(am, log, { file: file(), app: 'Music Assistant', claimDir: claims, bootId: () => 'b', yieldStops: true, onLost: () => lost.push(1) });
+    ma.want(true); await settle();
+    assert.ok(ma.state().connected, 'connected');
+    // the driver picks the radio: the audio manager ends our connection
+    am.list.length = 0;
+    for (let i = 0; i < 30 && !lost.length; i++) { ma.want(true); await settle(150); }
+    assert.strictEqual(lost.length, 1, 'told once');
+    assert.ok(!ma.state().connected && ma.state().lost, JSON.stringify(ma.state()));
+    // the music still reported playing: not connected again
+    const n = am.calls.filter((c) => c === 'connect').length;
+    for (let i = 0; i < 25; i++) { ma.want(true); await settle(120); }
+    assert.strictEqual(am.calls.filter((c) => c === 'connect').length, n, 'no connect while lost');
+    assert.strictEqual(am.list.length, 0);
+    // play pressed in the app: connected again
+    ma.resume(); ma.want(true); await settle(200);
+    assert.ok(ma.state().connected && !ma.state().lost, JSON.stringify(ma.state()));
+    assert.strictEqual(am.list.length, 1);
+    // a stop, then a play: also connects (lost cleared by the stop)
+    am.list.length = 0;
+    for (let i = 0; i < 30 && lost.length < 2; i++) { ma.want(true); await settle(150); }
+    ma.want(false); await settle(); ma.want(true); await settle(200);
+    assert.ok(ma.state().connected, 'connected after a stop and a play');
+});
+
 test('every app\'s copy of car_audio.js has the same code as Music Assistant\'s', () => {
     const body = (f) => { const s = fs.readFileSync(f, 'utf8'); return s.slice(s.indexOf("const AM = '")); };
     const ref = body(path.join(ROOT, 'apps', 'aurelm_tvhplayer', 'car_audio.js'));

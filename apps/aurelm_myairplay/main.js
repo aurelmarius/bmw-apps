@@ -116,7 +116,8 @@ function view(s, pic, ca, opts) {
     let sd = 'none yet', ss = 'off';
     if (snd && !snd.ok) { ss = 'bad'; sd = snd.error; }
     else if (snd && r.soundRunning) {
-        if (ca && ca.taken) { ss = 'bad'; sd = 'the speakers are in use by another app (Emby)'; }
+        if (ca && ca.lost) { ss = 'wait'; sd = 'the car switched to another source: back on the speakers once the iPhone\'s sound stops and starts again, or this page is opened again'; }
+        else if (ca && ca.taken) { ss = 'bad'; sd = 'the speakers are in use by another app (Emby)'; }
         else if (ca && ca.error) { ss = 'bad'; sd = ca.error; }
         else if (ca && ca.connected) { ss = 'ok'; sd = 'on the car speakers'; }
         else { ss = 'wait'; sd = 'connecting the speakers'; }

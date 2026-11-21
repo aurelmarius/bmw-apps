@@ -174,7 +174,8 @@ function playRows(s, rows) {
         // the level: raised by the setting, the peaks held under -1 dBFS (the share of samples the limiter lowered)
         const lim = tk.limited && tk.aplayed ? Math.round(tk.limited / (tk.aplayed * 1024) * 1000) / 10 : 0;
         const lvl = pb.gain != null ? '; +' + pb.gain + ' dB' + (pb.even ? ', even volume' : '') + (lim ? ', ' + lim + '% limited' : '') : '';
-        if (ca.taken) snd = { state: 'bad', detail: n + lvl + '; the speakers are in use by myAirPlay or Emby: stop it there' };
+        if (ca.lost) snd = { state: 'wait', detail: n + '; the car switched to another source: the channel stops' };
+        else if (ca.taken) snd = { state: 'bad', detail: n + lvl + '; the speakers are in use by myAirPlay or Emby: stop it there' };
         else if (ca.error) snd = { state: 'bad', detail: n + '; route: ' + ca.error };
         else snd = { state: ca.connected ? 'ok' : 'wait', detail: n + (ca.connected ? ', on the speakers' : ', connecting the speakers') + lvl };
     }
@@ -386,7 +387,13 @@ mgu.run({
                 }
             } catch (e) { log.warn('tvh page: ' + e); }
         }
-        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? path.join(ctx.dataDir, 'car-audio.json') : null, app: 'TVH Player' });
+        // the driver chose another source in the car (the radio...): the channel stops (live TV has no pause), its card
+        // leaves the cluster, and Watch starts it again
+        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? path.join(ctx.dataDir, 'car-audio.json') : null, app: 'TVH Player',
+            onLost: () => {
+                log.info('tvh: the car switched to another source: stopping the channel');
+                command('stop', 'Stopped: the car switched to another source').catch(() => {});
+            } });
         setZone(() => ctx.settings.get('tz') || 'eet');
         const parkedOnly = () => ctx.settings.get('parkedOnly') !== false;
         /** the player as the mirror view knows a receiver: running, its decoder, pictures shown */
@@ -458,7 +465,7 @@ mgu.run({
             hmKey: () => ctx.settings.get('tz') || '',
             info: () => {
                 const pb = st && st.playback;
-                if (!channelOn(pb) || !pb.channel) return null;
+                if (!channelOn(pb) || !pb.channel || carAudio.state().lost) return null;
                 const uuid = pb.channel.uuid, e = chans.epg[uuid] || {};
                 const g = guideOf(uuid), now = Date.now() / 1000;
                 const next = g && g.events ? g.events.filter((x) => x.start >= (e.stop || now))[0] || null : null;
