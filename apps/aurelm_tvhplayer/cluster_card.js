@@ -21,13 +21,14 @@
  *   card.render(i)    the card's RGBA (CARD.w x CARD.h) for an info i (tests)
  */
 const fs = require('fs');
+const { drawLine: drawVolume } = require('./volume_popup');
 
 const CLIENT = '/var/opt/cluster-render/current/cluster_render_client.js';
 const SOCKET = '/dev/shm/cluster-render/render.sock';
 const CARD = { w: 520, h: 420 };
 const PLACE = { x: 1130, y: 140 };      // panel pixels (1920x720): centred on the right dial's media widget (1390, 345)
 const LOGO = { w: 190, h: 114 };        // in the cover's place; the server's logos are 5:3
-const MIN_MS = 5000;
+const MIN_MS = 5000, VOL_MS = 150;
 
 // as BMW's widget: no frame, the lines centred under the cover, white and a softer white; behind them a dark field
 // that fades out to the dial (an ellipse, opaque inside FADE_IN of its radius: it hides the widget underneath)
@@ -68,10 +69,13 @@ function render(i, hm, Canvas) {
     let y = top + LOGO.h + 50;
     cv.text(clip(cv, i.name, 34, w, 'label'), cx, y, 34, TEXT, { align: 'center', literal: true });
     y += 42;
+    // the car's volume (while its popup shows) in place of the programme's time and progress
+    const vol = (y2) => drawVolume(cv, cx, y2, i.vol, { text: TEXT, dim: DIM, track: TRACK, bar: BLUE });
     if (i.title) {
         cv.text(clip(cv, i.title, 30, w, 'label'), cx, y, 30, SOFT, { align: 'center', literal: true });
         y += 40;
-        if (i.start && i.stop && i.stop > i.start) {
+        if (i.vol) { vol(y); y += 50; }
+        else if (i.start && i.stop && i.stop > i.start) {
             const left = Math.max(0, Math.round((i.stop * 1000 - i.now) / 60000));
             cv.text(hm(i.start) + ' - ' + hm(i.stop) + (left ? '  (' + left + ' min)' : ''), cx, y, 26, TEXT, { align: 'center', literal: true });
             y += 16;
@@ -81,7 +85,8 @@ function render(i, hm, Canvas) {
             y += 34;
         }
         if (i.next && i.next.title) cv.text(clip(cv, hm(i.next.start) + '  ' + i.next.title, 22, 300, 'label'), cx, y, 22, DIM, { align: 'center', literal: true });
-    } else cv.text('No programme', cx, y, 28, DIM, { align: 'center', literal: true });
+    } else if (i.vol) vol(y);
+    else cv.text('No programme', cx, y, 28, DIM, { align: 'center', literal: true });
     return cv;
 }
 
@@ -90,7 +95,7 @@ function createClusterCard(o) {
     const CLIENT_PATH = o.clientPath || CLIENT, SOCKET_PATH = o.socketPath || SOCKET;
     let cr = null, layer = null, loadError = null;
     let st = { state: 'off', detail: 'off in the settings' };
-    let key = null, drawnAt = 0, shownWant = false, place = null;
+    let key = null, drawnAt = 0, shownWant = false, place = null, drawnVol = '', later = null;
     const logos = new Map();   // uuid -> { state, img }
 
     function client() {
@@ -135,7 +140,7 @@ function createClusterCard(o) {
 
     function hide(why) {
         if (layer && shownWant) { cr.set(layer, { visible: 0 }); shownWant = false; log.info('cluster: card hidden (' + why + ')'); }
-        key = null;
+        key = null; drawnVol = '';
     }
 
     function update() {
@@ -154,12 +159,15 @@ function createClusterCard(o) {
         i.logo = logoOf(i.uuid);
         i.now = Date.now();
         // what is drawn changes with the programme, the logo and the minute (the progress)
-        const k = [i.uuid, i.name, i.title, i.start, i.stop, i.next ? i.next.start + i.next.title : '', i.logo ? i.logo.w : 0, Math.floor(i.now / 60000), o.hmKey ? o.hmKey() : ''].join('|');
-        if (k !== key && Date.now() - drawnAt >= MIN_MS) {
+        // the volume (while its popup shows, and the moment it goes) is drawn at once, at most every VOL_MS
+        const vk = i.vol ? (i.vol.muted ? 'm' : 'v' + i.vol.volume) : '';
+        const k = [i.uuid, i.name, i.title, i.start, i.stop, i.next ? i.next.start + i.next.title : '', i.logo ? i.logo.w : 0, Math.floor(i.now / 60000), o.hmKey ? o.hmKey() : '', vk].join('|');
+        const urgent = vk !== drawnVol, since = Date.now() - drawnAt;
+        if (k !== key && (since >= MIN_MS || (urgent && since >= VOL_MS))) {
             const cv = render(i, o.hm, o.Canvas);
             c.pixels(layer, null, Buffer.from(cv.d.buffer, cv.d.byteOffset, cv.d.length));
-            key = k; drawnAt = Date.now();
-        }
+            key = k; drawnAt = Date.now(); drawnVol = vk;
+        } else if (urgent && !later) later = setTimeout(() => { later = null; update(); }, VOL_MS - since);
         if (!shownWant) { c.set(layer, { visible: 1 }); shownWant = true; log.info('cluster: card for ' + i.name + ' at ' + x + ',' + y); }
     }
 
