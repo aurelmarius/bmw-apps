@@ -124,6 +124,11 @@ function createCarAudio(signals, log, opts) {
     }
     function want(on) {
         const now = Date.now();
+        // our connection gone (the driver chose another source in the car's menu): not taken back while the app
+        // goes on wanting the speakers (its music may still be reported playing); a stop, or resume() (the user's
+        // play in the app), ends that
+        if (!on && am.lost) am.lost = false;
+        if (on && am.lost) return;
         // an app that stops when it lets go (yieldStops: Music Assistant pauses): its "on" in the next seconds is the
         // music still reported playing, not a new start; after that, an "on" is one (the user's play) and claims again
         if (on && !am.on && now - am.yieldedAt < 5000) return;
@@ -142,6 +147,15 @@ function createCarAudio(signals, log, opts) {
             await ready();
             if (on) {
                 if (am.connected && am.id != null) {
+                    // ours no longer on 287: the car ended it (another source chosen); the app is told, and the
+                    // speakers are not taken back on their own
+                    if (!(await on287()).some((c) => c.mainConnectionID === am.id)) {
+                        log.info('car audio: our connection ' + am.id + ' is gone (the car switched to another source): not taking the speakers back');
+                        am.id = null; save(null); am.connected = false; am.lost = true; am.taken = false;
+                        claim(false);
+                        if (o.onLost) try { o.onLost(); } catch (e) { log.warn('car audio onLost: ' + e); }
+                        return;
+                    }
                     // a newer app wants the speakers: ours goes, and the app is told (Music Assistant pauses)
                     const c = newerClaim();
                     if (!c) return;
@@ -177,7 +191,9 @@ function createCarAudio(signals, log, opts) {
             }
         }).catch((e) => { am.error = String(e); log.warn('car audio: ' + e); });
     }
-    return { want, state: () => ({ on: am.on, connected: am.connected, error: am.error, taken: am.taken, yieldedTo: am.yieldedTo }) };
+    /** the user's play in the app after the car took the speakers: the next want(true) connects again */
+    function resume() { if (am.lost) { am.lost = false; am.on = false; } }
+    return { want, resume, state: () => ({ on: am.on, connected: am.connected, error: am.error, taken: am.taken, yieldedTo: am.yieldedTo, lost: !!am.lost }) };
 }
 
 module.exports = { createCarAudio, SRC, SINK };
