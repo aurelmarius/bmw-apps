@@ -36,6 +36,8 @@ const { RenderClient } = require('./mgu_render_client');
 const { createMirrorView } = require('./mirror_view');
 const { createControls, videoRect, hm, when, setZone } = require('./controls');
 const { createCarAudio } = require('./car_audio');
+const { createCarVolume } = require('./car_volume');
+const { drawPopup: drawVolume } = require('./volume_popup');
 const { createLogos, BOX: LOGO } = require('./logos');
 const png = require('./kit/png');
 const { createClusterCard } = require('./cluster_card');
@@ -389,7 +391,23 @@ mgu.run({
         }
         // the driver chose another source in the car (the radio...): the channel stops (live TV has no pause), its card
         // leaves the cluster, and Watch starts it again
-        const carAudio = createCarAudio(ctx.signals, log, { file: ctx.dataDir ? path.join(ctx.dataDir, 'car-audio.json') : null, app: 'TVH Player',
+        // one proxy per interface for the speakers and the volume (the audio manager's)
+        const proxies = {};
+        const sig = ctx.signals && ctx.signals.proxy ? Object.assign({}, ctx.signals, {
+            proxy: (iface, inst) => {
+                const k = iface + '/' + inst;
+                if (!proxies[k]) proxies[k] = ctx.signals.proxy(iface, inst).catch((e) => { delete proxies[k]; throw e; });
+                return proxies[k];
+            } }) : ctx.signals;
+        // the car's volume (sink 1): a popup over the page and the channel when it changes (the HMI shows none on
+        // 287), all the time while muted; on the cluster card too
+        let volEnd = null;
+        const volume = createCarVolume(sig, log, { onChange: () => {
+            const again = () => { try { render(); mirror.tick(); card.update(); } catch (e) { /* not yet */ } };
+            again();
+            clearTimeout(volEnd); volEnd = setTimeout(again, 2100);
+        } });
+        const carAudio = createCarAudio(sig, log, { file: ctx.dataDir ? path.join(ctx.dataDir, 'car-audio.json') : null, app: 'TVH Player',
             onLost: () => {
                 log.info('tvh: the car switched to another source: stopping the channel');
                 command('stop', 'Stopped: the car switched to another source').catch(() => {});
@@ -446,12 +464,14 @@ mgu.run({
             const word = lost ? 'No connection to the server. Press to try again'
                 : pb && pb.state === 'loading' && pb.retrySince ? 'Reconnecting... ' + mmss(Date.now() - pb.retrySince)
                     : pb && pb.state === 'loading' ? 'Tuning ' + info.title + '...' : 'Buffering...';
+            const vp = volume.popup();
             return {
-                key: [mode, fw, fh, bar, loading, word].join('#'),
+                key: [mode, fw, fh, bar, loading, word, vp ? (vp.muted ? 'm' : vp.volume) : ''].join('#'),
                 rect: (p) => videoRect(mode, fw, fh, p),
                 draw: (rec, p) => {
                     if (loading) rec.text(word, p.w / 2, p.h / 2, Math.round(p.h * 0.05), 0xffffffb0, { align: 'center', font: 'bold', literal: true });
                     if (bar) controls.draw(rec, p, info);
+                    if (vp) drawVolume(rec, p.w, p.h, vp, BLUE, p.h / 520, bar ? controls.height(p) + 10 : 0);
                 },
             };
         }
@@ -469,7 +489,7 @@ mgu.run({
                 const uuid = pb.channel.uuid, e = chans.epg[uuid] || {};
                 const g = guideOf(uuid), now = Date.now() / 1000;
                 const next = g && g.events ? g.events.filter((x) => x.start >= (e.stop || now))[0] || null : null;
-                return { uuid, name: chName(pb.channel), title: e.title || '', start: e.start, stop: e.stop, next: next ? { start: next.start, title: next.title } : null };
+                return { uuid, name: chName(pb.channel), title: e.title || '', start: e.start, stop: e.stop, next: next ? { start: next.start, title: next.title } : null, vol: volume.popup() };
             } });
         setInterval(() => { try { card.update(); } catch (e) { log.warn('cluster: ' + (e && e.stack || e)); } }, 1000);
 
@@ -600,6 +620,8 @@ mgu.run({
             G.frame(cv, t, ['TV', 'Status'], tab, [busy && { text: busy, color: 'accent' }, page && { text: 'SIGN-IN ' + Math.ceil((page.left || 0) / 60) + ' MIN' }, live]);
             if (st) { st.mirror = mirror.state(); st.carAudio = carAudio.state(); st.logoStats = logos.stats(); st.cluster = card.state(); st.wheel = wheel.state(); }
             if (tab === 1) drawStatus(cv, t, page); else drawTv(cv, t, page);
+            const vp = volume.popup();
+            if (vp) drawVolume(cv, W, H, vp, BLUE);
             return ui.image('MAIN_GFX', cv);
         }
 
